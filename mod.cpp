@@ -1,15 +1,22 @@
 #include <iostream>
 using namespace std;
 
+#ifdef USE_ATTR
+#define Rep(i,n) for (int i=0;i<n;i++)
+#define Rep_(i,n) for (int i=1;i<=n;i++)
+#define For(i,a,b) for (int i=a;i<b;i++)
+#define MP make_pair
+#define DB double
+#endif
+
 typedef long long ll;
 struct T{};
 
 int rc(){
-	//return getchar();
+	//return getchar(); //if use fread, input won't stop until EOF
 	static char buf[10000],*p1=buf,*p2=buf;
 	return p1==p2&&(p2=(p1=buf)+fread(buf,1,10000,stdin),p1==p2)?EOF:*p1++;
 }
-
 int rd(int &x){
 	x=0; int f=1,c=rc(), fa=0;
 	while (!isdigit(c)) c=='-'?f=-1:0,c=rc();
@@ -214,6 +221,23 @@ void spiltprime(ll n)
 	while (t==n) t=pol_rho(n,rand()%(n-1));
 	spiltprime(t); spiltprime(n/t);
 }
+
+struct Q{
+	ll p,q;
+	Q(ll x){p=x;q=1;}
+	void operator=(ll x){p=x;q=1;}
+	void simp(){ll t=gcd(p,q); if (t!=1) p/=t,q/=t; if (q<0) p=-p,q=-q;}
+	void operator+=(const Q &v){p=p*v.q+v.p*q;q*=v.q;simp();}
+	void operator-=(const Q &v){p=p*v.q*v.p*q;q*=v.q;simp();}
+	void operator*=(const Q &v){p*=v.p;q*=v.q;simp();}
+	void operator/=(const Q &v){p*=v.q;q*=v.p;simp();}
+	Q operator+(const Q &y){Q x(*this);x+=y;return x;}
+	Q operator-(const Q &y){Q x(*this);x-=y;return x;}
+	Q operator*(const Q &y){Q x(*this);x*=y;return x;}
+	Q operator/(const Q &y){Q x(*this);x/=y;return x;}
+	bool operator<(const Q &v){return p*v.q<v.p*q;}
+	double d(){return (double)p/q;}
+};
 
 namespace LUCAS{
 const ll luo=10007;
@@ -969,6 +993,96 @@ int run(){
 	return 0;
 }
 };
+
+namespace LinAlg{
+const int maxn=1010,maxm=1010;
+double a[maxn][maxm],b[maxn][maxn],ans[maxn],n,m;
+//require m=n+1
+void gauss_solve(){
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (maxl!=i) swap(a[i],a[maxl]);
+		double r=a[i][i];
+		if (fabs(r)<eps) return 0; //No trivil
+		for (int k=i;k<m;k++) a[i][k]/=r;
+		for (int j=i+1;j<n;j++){
+			r=a[j][i]/a[i][i];
+			for (int k=i;k<m;k++)
+				a[j][k]-=r*a[i][k];
+		}
+	}
+	for (int i=n-1;i>=0;i--){
+		ans[i]=a[i][n];
+		for (int j=i+1;j<n;j++)
+			ans[i]-=a[i][j]*ans[j];
+	}
+	return 1;
+}
+//n*n matrix
+bool matinv(){
+	memset(b,0,sizeof(b));
+	for (int i=0;i<n;i++) b[i][i]=1;	
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]),swap(b[i],b[maxl]);
+		double r=a[i][i];
+		if (fabs(r)<eps) return 0; //No trivil
+		for (int k=0;k<n;k++) a[i][k]/=r,b[i][k]/=r; //k start from 0
+		for (int j=i+1;j<n;j++){
+			r=a[j][i]/a[i][i];
+			for (int k=0;k<n;k++)
+				a[j][k]-=r*a[i][k],
+				b[j][k]-=r*b[i][k];
+		}
+	}
+	return 1;
+}
+double det(){
+	double ans=1;
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
+		double r=a[i][i];
+		if (fabs(r)<eps) return 0;
+		for (int j=i+1;j<n;j++){
+			r=a[j][i]/a[i][i];
+			for (int k=i;k<n;k++)
+				a[j][k]-=r*a[i][k];
+		}
+	}
+	for (int i=0;i<n;i++) ans*=a[i][i];
+	return ans;
+}
+ll p=19260817;
+//int det with abs,mod
+//used by Matrix-Tree theorem
+//M-T theo: a[i][i]=-deg i, a[i][j]=cnt(i->j), n=|u|-1
+ll detint_abs(){
+	ll ans=1;
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (a[j][i]>0) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]);
+		if (a[i][i]==0) return 0;
+		for (int j=i+1;j<n;j++){
+			if (!a[j][k]) continue;
+			ans=ans*a[i][i]%p; //multi div op
+			for (int k=i;k<n;k++)
+				a[j][k]=(a[j][k]*a[i][i]-a[i][k]*a[j][i]+p)%p;
+		}
+	}
+	ans=inv(ans,p);
+	for (int i=0;i<n;i++) ans=ans*a[i][i]%p;
+	return ans;
+}
+}
 
 int main(){
 	return 0;
