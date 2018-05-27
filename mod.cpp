@@ -298,6 +298,7 @@ int spfa(int s){
 	}
 }
 //judge negative circle
+//!-- Some reasons show it's unreliable
 bool spfa_dfsjudge(int u){
 	vis[u]=1;
 	for (int e=head[u];e;e=nxt[e]){
@@ -914,22 +915,25 @@ struct Node{
 	//x: number, s: sum size of cur and subtree, cnt: cnt of cur num
 	Node *c[2];
 	int x,s,r,cnt;
-	Node(int _x){c[0]=c[1]=s=cnt=0;x=_x;rnd=rand();}
-}_CRT_MEMCPY_S_VALIDATE_RETURN_ERRCODE[maxn];
+	Node(int _x){c[0]=c[1]=0;s=cnt=1;x=_x;r=rand();}
+	Node(){};
+}tree[maxn];
 #define lc u->c[0]
 #define rc u->c[1]
+#define lcs (lc?lc->s:0)
+#define rcs (rc?rc->s:0)
 int trcnt=0;
 Node *open(int x){
 	tree[trcnt++]=Node(x);
 	return tree+trcnt-1;
 }
 void upd(Node *u){
-	tr[u].s=tr[lc].s+tr[rc].s+tr[u].ct;
+	u->s=lcs+rcs+u->cnt;
 	//more updates...
 }
 //rt: set lc to root
 void rot(Node* &u, int d){ //0 lt, 1 rt
-	Node *t=u->c[d^1]; u.c[d^1]=t->c[d]; t->c[d]=u;
+	Node *t=u->c[d^1]; u->c[d^1]=t->c[d]; t->c[d]=u;
 	t->s=u->s; upd(u); u=t;
 }
 void ins(Node* &u, int x){
@@ -942,39 +946,50 @@ void ins(Node* &u, int x){
 void delx(Node* &u, int x){
 	if (!u) return;
 	if (x==u->x){
-		if (tr[p].cnt>1) tr[u].cnt--, tr[u].s--;
-		else if (!lc || !rc) u=max(lc+rc);
+		if (u->cnt>1) u->cnt--, u->s--;
+		else if (!lc || !rc) u=max(lc,rc);
 		else{
 			rot(u,lc->r>rc->r);
-			u->s--,delx(u->c[x>u->x],x);
+			u->s--,delx(u->c[u->x<x],x);
 		}
 	}
-	else u->s--,delx(u->c[x>u->x],x);
+	else u->s--,delx(u->c[u->x<x],x);
 }
-void rank(Node *u, int x){
-	if (!u) return -1;
-	if (u.x==x) return lc->s+1;
-	if (x>tr[p].val) return lc->s + u->cnt + rank(rc,x);
-	else return rank(lc, x);
+//get element rank
+int rk(Node *u, int x){
+	if (!u) return 0;
+	if (u->x==x) return lcs + 1;
+	if (u->x<x) return lcs + u->cnt + rk(rc,x);
+	else return rk(lc, x);
 }
+//get point by element
 Node* findx(Node *u, int x){
 	if (!u) return 0;
-	if (x==u->v) return u;
-	return findx(u->c[x>u->x],x);
+	if (x==u->x) return u;
+	return findx(u->c[u->x<x],x);
 }
+//get point by rank
+//r=(1~tree_size)
 Node* findr(Node *u, int r){
-	if (!p) return 0;
-	if (x<=lc->s) return findr(lc,r);
-	r-=lc->s;
-	if (x<=u->cnt) return u;
-	r-=u->s;
+	if (!u) return 0;
+	if (r<=lcs) return findr(lc,r);
+	r-=lcs;
+	if (r<=u->cnt) return u;
+	r-=u->cnt;
 	return findr(rc,r);
 }
-
+//debug
+void dfs(Node *u, int deep=0){
+	if (lc) dfs(lc,deep+1);
+	for (int i=0;i<deep;i++) cout<<"   ";
+	cout<<u->x<<' '<<u->s<<'\n';
+	if (rc) dfs(rc,deep+1);
+}
 #undef lc
 #undef rc
+#undef lcs
+#undef rcs
 }
-
 namespace ST{
 const int maxn=100010;
 int st[30][maxn],a[maxn];
@@ -1006,12 +1021,12 @@ void gauss_solve(){
 		if (maxl!=i) swap(a[i],a[maxl]);
 		double r=a[i][i];
 		if (fabs(r)<eps) return 0; //No trivil
-		for (int k=i;k<m;k++) a[i][k]/=r;
 		for (int j=i+1;j<n;j++){
 			r=a[j][i]/a[i][i];
 			for (int k=i;k<m;k++)
 				a[j][k]-=r*a[i][k];
 		}
+		for (int k=i;k<m;k++) a[i][k]/=r;
 	}
 	for (int i=n-1;i>=0;i--){
 		ans[i]=a[i][n];
@@ -1059,28 +1074,66 @@ double det(){
 	for (int i=0;i<n;i++) ans*=a[i][i];
 	return ans;
 }
+int matrank(){
+	int l=0;
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=l+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
+		double r=a[l][i];
+		if (fabs(r)<eps) continue;
+		for (int j=l+1;j<n;j++){
+			r=a[j][i]/a[l][i];
+			for (int k=i;k<m;k++)
+				a[j][k]-=r*a[i][k];
+		}
+		l++;
+	}
+	return l;
+}
 ll p=19260817;
 //int det with abs,mod
 //used by Matrix-Tree theorem
 //M-T theo: a[i][i]=-deg i, a[i][j]=cnt(i->j), n=|u|-1
+//!--
 ll detint_abs(){
 	ll ans=1;
 	for (int i=0;i<n;i++){
 		int maxl=i;
 		for (int j=i+1;j<n;j++)
-			if (a[j][i]>0) maxl=j;
+			if (a[j][i]>0) {maxl=j;break;}
 		if (i!=maxl) swap(a[i],a[maxl]);
 		if (a[i][i]==0) return 0;
 		for (int j=i+1;j<n;j++){
-			if (!a[j][k]) continue;
+			if (!a[j][i]) continue;
 			ans=ans*a[i][i]%p; //multi div op
 			for (int k=i;k<n;k++)
-				a[j][k]=(a[j][k]*a[i][i]-a[i][k]*a[j][i]+p)%p;
+				a[j][k]=(a[j][k]*a[i][i]-a[j][i]*a[i][k]+p)%p;
 		}
 	}
 	ans=inv(ans,p);
 	for (int i=0;i<n;i++) ans=ans*a[i][i]%p;
 	return ans;
+}
+}
+
+namespace LCA{
+using namespace UFSet;
+int dep[maxn];
+int a[maxn][24];//ancesotr
+int lca(int u, int v){
+	int tu=u,tv=v;
+	if (dep[u]<dep[v]) swap(i,v);
+	for (int i=23;i>=0;i--) if (dep[a[u][i]]>dep[v]) u=a[u][i];
+	for (int i=23;i>=0;i--) 
+		if (a[u][i]!=a[v][i]) u=a[u][i],v=a[v][i];
+	return u;
+}
+void tarjan(int u){
+
+for (int i=0;i<ed[u].size();i++)
+	tarjan(ed[u][i]);
 }
 }
 
