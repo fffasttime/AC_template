@@ -2,14 +2,16 @@
 using namespace std;
 
 #ifdef USE_ATTR
-#define Rep(i,n) for (int i=0;i<n;i++)
-#define Rep_(i,n) for (int i=1;i<=n;i++)
-#define For(i,a,b) for (int i=a;i<b;i++)
+#define inc(i,n) for (int i=0;i<n;i++)
+#define inc_(i,n) for (int i=1;i<=n;i++)
+#define dec(i,n) for (int i=n-1;i>=0;i--)
+#define fo(i,a,b) for (int i=a;i<b;i++)
+#define forr(i,b,a) for (int i=b-1;i>=a;i--)
 #define MP make_pair
-#define DB double
 #endif
 
 typedef long long ll;
+typedef double db;
 struct T{};
 
 int rc(){
@@ -600,9 +602,6 @@ void add(ll a, int x){
 }
 }
 
-
-}
-
 namespace BipartiteGraph{
 int vis[maxn]; //memset to 0 when start
 //judge if a map is BipartiteGraph
@@ -910,20 +909,23 @@ void build(){
 }
 
 namespace Treap{
+//TT: an ordered struct
+typedef int TT;
 const int maxn=100001;
 struct Node{
 	//x: number, s: sum size of cur and subtree, cnt: cnt of cur num
 	Node *c[2];
-	int x,s,r,cnt;
-	Node(int _x){c[0]=c[1]=0;s=cnt=1;x=_x;r=rand();}
+	TT x;
+	int s,r,cnt;
+	Node(TT _x){c[0]=c[1]=0;s=cnt=1;x=_x;r=rand();}
 	Node(){};
-}tree[maxn];
+}tree[maxn<<1];
 #define lc u->c[0]
 #define rc u->c[1]
 #define lcs (lc?lc->s:0)
 #define rcs (rc?rc->s:0)
 int trcnt=0;
-Node *open(int x){
+Node *open(TT x){
 	tree[trcnt++]=Node(x);
 	return tree+trcnt-1;
 }
@@ -936,14 +938,14 @@ void rot(Node* &u, int d){ //0 lt, 1 rt
 	Node *t=u->c[d^1]; u->c[d^1]=t->c[d]; t->c[d]=u;
 	t->s=u->s; upd(u); u=t;
 }
-void ins(Node* &u, int x){
+void ins(Node* &u, TT x){
 	if (!u){u=open(x);return;}
 	if (x==u->x) {u->cnt++;u->s++; return;}
 	int d=x>u->x; u->s++;
 	ins(u->c[d],x);
 	if (u->c[d]->r>u->r) rot(u,d^1);
 }
-void delx(Node* &u, int x){
+void delx(Node* &u, TT x){
 	if (!u) return;
 	if (x==u->x){
 		if (u->cnt>1) u->cnt--, u->s--;
@@ -955,15 +957,14 @@ void delx(Node* &u, int x){
 	}
 	else u->s--,delx(u->c[u->x<x],x);
 }
-//get element rank
-int rk(Node *u, int x){
+TT rk(Node *u, TT x){
 	if (!u) return 0;
 	if (u->x==x) return lcs + 1;
 	if (u->x<x) return lcs + u->cnt + rk(rc,x);
 	else return rk(lc, x);
 }
 //get point by element
-Node* findx(Node *u, int x){
+Node* findx(Node *u, TT x){
 	if (!u) return 0;
 	if (x==u->x) return u;
 	return findx(u->c[u->x<x],x);
@@ -978,12 +979,35 @@ Node* findr(Node *u, int r){
 	r-=u->cnt;
 	return findr(rc,r);
 }
-//debug
+TT pred(Node *u, TT x){
+	if (!u) return -0x3f3f3f3f;
+	if (u->x<x) return max(u->x,pred(rc,x));
+	else return pred(lc,x);
+}
+TT succ(Node *u, TT x){
+	if (!u) return 0x3f3f3f3f;
+	if (x<u->x) return min(u->x,succ(lc,x));
+	else return succ(rc,x);
+}
 void dfs(Node *u, int deep=0){
 	if (lc) dfs(lc,deep+1);
 	for (int i=0;i<deep;i++) cout<<"   ";
 	cout<<u->x<<' '<<u->s<<'\n';
 	if (rc) dfs(rc,deep+1);
+}
+void caller(){
+	Node *root=0;
+	int T;cin>>T;
+	while (T--)	{
+		int c,x; scanf("%d%d",&c,&x);
+		if (c==1) ins(root,x);
+		if (c==2) delx(root,x);
+		if (c==3) cout<<rk(root,x)<<'\n';
+		if (c==4) cout<<findr(root,x)->x<<'\n';
+		if (c==5) cout<<pred(root,x)<<'\n';
+		if (c==6) cout<<succ(root,x)<<'\n';
+		//dfs(root),cout<<'\n';
+	}
 }
 #undef lc
 #undef rc
@@ -1119,21 +1143,137 @@ ll detint_abs(){
 }
 
 namespace LCA{
-using namespace UFSet;
+const int maxn=500010;
+struct Edge{
+	int to,nxt;
+	//int w;
+}ed[maxn<<1];
+int head[maxn],ecnt;
+void added(int x, int y){
+	ed[++ecnt].to=y;
+	ed[ecnt].nxt=head[x];
+	head[x]=ecnt;
+}
+bool vis[maxn];
+//online query, sum, minimax
+namespace multiply{
 int dep[maxn];
-int a[maxn][24];//ancesotr
+int pa[24][maxn];
+//minn[24][maxn], sumv[24][maxn];
 int lca(int u, int v){
-	int tu=u,tv=v;
-	if (dep[u]<dep[v]) swap(i,v);
-	for (int i=23;i>=0;i--) if (dep[a[u][i]]>dep[v]) u=a[u][i];
-	for (int i=23;i>=0;i--) 
-		if (a[u][i]!=a[v][i]) u=a[u][i],v=a[v][i];
+	//int tu=u,tv=v,sum=0;
+	if (dep[u]<dep[v]) swap(u,v);
+	for (int k=23;k>=0;k--) 
+		if (dep[pa[k][u]]>=dep[v]) u=pa[k][u]; //,sum+=sumv[k][u];
+	if (u!=v){
+		for (int k=23;k>=0;k--) 
+			if (pa[k][u]!=pa[k][v]) u=pa[k][u],v=pa[k][v];//,sum+=sumv[k][u]+sum[k][v];
+		u=pa[0][u];//sum+=sumv[0][u]+sumv[0][v];
+	}
+	//int lenth=dep[tu]+dep[tv]-2*dep[u];
 	return u;
 }
-void tarjan(int u){
-
-for (int i=0;i<ed[u].size();i++)
-	tarjan(ed[u][i]);
+bool vis[maxn];
+void dfs_deep(int u){
+	vis[u]=1;
+	for (int e=head[u];e;e=ed[e].nxt){
+		int v=ed[e].to;
+		if (!vis[v]){
+			dep[v]=dep[u]+1; pa[0][v]=u;
+			for (int k=1;pa[k-1][pa[k-1][v]];k++)
+				pa[k][v]=pa[k-1][pa[k-1][v]];
+			//	sumv[0][u]=minn[0][u]=maxn[0][u]=ed[e].w;
+			//	for (int k=1;pa[k-1][pa[k-1][u]];k++) 
+			//		sumv[k][u]=sumv[k-1][u]+sumv[k-1][pa[k-1][u]];
+			dfs_deep(v);
+		}
+	}
+}
+//no stackoverflow
+int qu[maxn];
+void bfs_deep(int s){
+	int qh=0,qt=1;
+	qu[0]=s;dep[s]=1;vis[s]=1;
+	while (qh<qt){
+		int u=qu[qh];
+		for (int e=head[u];e;e=ed[e].nxt){
+			int v=ed[e].to;
+			if (!vis[v]){
+				dep[v]=dep[u]+1;
+				vis[v]=1; pa[0][v]=u;
+				for (int k=1;pa[k-1][pa[k-1][v]];k++)
+					pa[k][v]=pa[k-1][pa[k-1][v]];
+			//	sumv[0][u]=minn[0][u]=maxn[0][u]=ed[e].w;
+			//	for (int k=1;pa[k-1][pa[k-1][u]];k++) 
+			//		sumv[k][u]=sumv[k-1][u]+sumv[k-1][pa[k-1][u]];
+				qu[qt++]=v;
+			}
+		}
+		qh++;
+	}
+}
+//n: node, m: query, s: root node
+void process(){
+	int n,m,s,a,b; cin>>n>>m>>s;
+	//for (int i=1;i<=n;i++) rd(w[i]);
+	for (int i=0;i<n-1;i++){
+		rd(a); rd(b);
+		added(a,b);
+		added(b,a);
+	}
+	dep[s]=1;dfs_deep(s);
+	//bfs_deep(s);
+	for (int i=0;i<m;i++){
+		rd(a); rd(b);
+		printf("%d\n",lca(a,b));
+	}
+	return 0;
+}
+}
+//offline lca
+namespace tarjan{
+using namespace UFSet;
+int ans[maxn]; //lca point
+struct QEdge{
+	int to,nxt,s;
+}qc[maxn<<1];
+int quh[maxn],qcnt;
+void addqu(int i,int a,int b){
+	qc[++qcnt]=(QEdge){b,quh[a],i};
+	quh[a]=qcnt;
+	qc[++qcnt]=(QEdge){a,quh[b],i};
+	quh[b]=qcnt;
+}
+//dfs, notify system stack
+void tarjan(int u, int f){
+	vis[u]=1;
+	for (int e=head[u];e;e=ed[e].nxt){
+		int v=ed[e].to;
+		if (!vis[v])
+			tarjan(v,u);
+	}
+	for (int i=quh[u];i;i=qc[i].nxt)
+		if (vis[qc[i].to])
+			ans[qc[i].s]=fi(qc[i].to);
+	un(u,f);
+}
+//n: node, m: query, s: root node
+void process(){
+	int n,m,s,a,b; cin>>n>>m>>s;
+	for (int i=0;i<=n;i++) fa[i]=i;
+	for (int i=0;i<n-1;i++){
+		rd(a); rd(b);
+		added(a,b);
+		added(b,a);
+	}
+	for (int i=0;i<m;i++){
+		rd(a); rd(b);
+		addqu(i,a,b);
+	}
+	tarjan(s,0);
+	for (int i=0;i<m;i++)
+		printf("%d\n",ans[i]);
+}
 }
 }
 
