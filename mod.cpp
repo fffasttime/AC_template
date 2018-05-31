@@ -656,12 +656,12 @@ void build(int u, int l, int r){
 	}
 	int mid=l+r>>1;
 	bulid(lc,l,mid); build(rc,mid,r);
-	sum[u]=(sum[u+u+1]+sum[u+u+2])%p;
+	sum[u]=(sum[lc]+sum[rc])%p;
 }
 void upd(int u, int l, int r){
 	int mid=l+r>>1;
 	sum[lc]*=tmul[u]; sum[lc]+=(mid-l)*tadd[u]; sum[lc]%=p;
-	sum[rc]*=tmul[u]; sym[rc]+=(r-mid)*tadd[u]; sum[rc]%=p;
+	sum[rc]*=tmul[u]; sum[rc]+=(r-mid)*tadd[u]; sum[rc]%=p;
 	tadd[lc]*=tmul[u]; tadd[lc]+=tadd[u]; tadd[lc]%=p;
 	tmul[lc]*=tmul[u]; tmul[lc]%=p;
 	tadd[rc]*=tmul[u]; tadd[rc]+=tadd[u]; tadd[rc]%=p;
@@ -678,19 +678,19 @@ void mul(int u, int l, int r, int cl, int cr, ll c){
 	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
 	int mid=l+r>>1;
 	if (cl<mid) mul(lc,l,mid,cl,cr,c);
-	if (cr>mid) mul(rc,mid,r,ck,cr,c);
+	if (cr>mid) mul(rc,mid,r,cl,cr,c);
 	sum[u]=(sum[lc]+sum[rc])%p;
 }
 void add(int u, int l, int r, int cl, int cr, ll c){
 	if (cl<=l && cr>=r){
 		tadd[u]+=c; tadd[u]%=p;
-		sum[u]=c*(r-l)%p; sum[u]%=p;
+		sum[u]+=c*(r-l)%p; sum[u]%=p;
 		return;
 	}
 	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
 	int mid=l+r>>1;
 	if (cl<mid) add(lc,l,mid,cl,cr,c);
-	if (cr>mid) add(rc,mid,r,ck,cr,c);
+	if (cr>mid) add(rc,mid,r,cl,cr,c);
 	sum[u]=(sum[lc]+sum[rc])%p;
 }
 ll ask(int u, int l, int r, int cl, int cr){
@@ -1274,6 +1274,136 @@ void process(){
 	for (int i=0;i<m;i++)
 		printf("%d\n",ans[i]);
 }
+}
+}
+namespace CutTree{
+const int maxn=100010;
+struct Edge{
+	int to,nxt;
+}ed[maxn<<1];
+int head[maxn],ecnt;
+void added(int a, int b){
+	ed[++ecnt]=(Edge){b,head[a]};
+	head[a]=ecnt;
+}
+int sum[maxn<<2],tadd[maxn<<2],a[maxn],n,P,ucnt;
+//son: heavy son, top: chain top, rk: segnode->treenode, id: treenode->segnode
+int w[maxn],dep[maxn],fa[maxn],son[maxn],
+	siz[maxn],rk[maxn],top[maxn],id[maxn];
+#define lc u+u+1
+#define rc u+u+2
+void build(int u, int l, int r){
+	if (l==r-1){
+		sum[u]=a[rk[l]];
+		return;
+	}
+	int mid=l+r>>1;
+	build(lc,l,mid); build(rc,mid,r);
+	sum[u]=(sum[lc]+sum[rc])%P;
+}
+void upd(int u, int l, int r){
+	int mid=l+r>>1;
+	sum[lc]+=(mid-l)*tadd[u]; sum[rc]+=(r-mid)*tadd[u];
+	tadd[lc]+=tadd[u]; tadd[rc]+=tadd[u];
+	sum[lc]%=P; sum[rc]%=P; tadd[lc]%=P; tadd[rc]%=P;
+	tadd[u]=0;
+}
+void add(int u, int l, int r, int cl, int cr, int c){
+	if (cl<=l && cr>=r){
+		tadd[u]+=c; tadd[u]%=P;
+		sum[u]+=c*(r-l)%P; sum[u]%=P;
+		return;
+	}
+	if (tadd[u]) upd(u,l,r);
+	int mid=l+r>>1;
+	if (cl<mid) add(lc,l,mid,cl,cr,c);
+	if (cr>mid) add(rc,mid,r,cl,cr,c);
+	sum[u]=(sum[lc]+sum[rc])%P;
+}
+int ask(int u, int l, int r, int cl, int cr){
+	if (cl<=l && cr>=r) return sum[u];
+	if (tadd[u]) upd(u,l,r);
+	int mid=l+r>>1;
+	int ret=0;
+	if (cl<mid) ret+=ask(lc,l,mid,cl,cr);
+	if (cr>mid) ret+=ask(rc,mid,r,cl,cr);
+	return ret%P;
+}
+void dfs1(int u, int f, int deep){
+	fa[u]=f; dep[u]=deep; siz[u]=1;
+	for (int i=head[u];i;i=ed[i].nxt){
+		int v=ed[i].to; 
+		if (v==f) continue;
+		dfs1(v,u,deep+1);
+		siz[u]+=siz[v];
+		if (siz[v]>siz[son[u]]) son[u]=v;
+	}
+}
+void dfs2(int u, int t){
+	top[u]=t; id[u]=++ucnt; rk[ucnt]=u; 
+	if (son[u]) dfs2(son[u],t);
+	for (int i=head[u];i;i=ed[i].nxt){
+		int v=ed[i].to;
+		if (v!=son[u] && v!=fa[u]) dfs2(v,v);
+	}
+}
+int askt(int x, int y){
+	int ans=0;
+	int fx=top[x],fy=top[y];
+	while (fx!=fy)
+		if (dep[fx]>=dep[fy]){
+			ans=(ans+ask(0,0,n+1,id[fx],id[x]+1))%P;
+			x=fa[fx],fx=top[x];
+		}
+		else{
+			ans=(ans+ask(0,0,n+1,id[fy],id[y]+1))%P;
+			y=fa[fy],fy=top[y];
+		}
+	if (id[x]>id[y]) swap(x,y);
+	return (ans+ask(0,0,n+1,id[x],id[y]+1))%P;
+}
+void addt(int x, int y, int c){
+	int fx=top[x],fy=top[y];
+	while (fx!=fy)
+		if (dep[fx]>=dep[fy]){
+			add(0,0,n+1,id[fx],id[x]+1,c);
+			x=fa[fx],fx=top[x];
+		}
+		else{
+			add(0,0,n+1,id[fy],id[y]+1,c);
+			y=fa[fy],fy=top[y];
+		}
+	if (id[x]>id[y]) swap(x,y);
+	add(0,0,n+1,id[x],id[y]+1,c);
+}
+//r: root, c: 1-add chain, 2-sum chain, 3-add subtree, 4-sum subtree
+void process(){
+	int m,r,x,y;
+	scanf("%d%d%d%d",&n,&m,&r,&P);
+	for (int i=1;i<=n;i++) scanf("%d",a+i);
+	for (int i=1;i<n;i++){
+		scanf("%d%d",&x,&y);
+		added(x,y); added(y,x);
+	}
+	dfs1(r,0,1);
+	dfs2(r,r);
+	build(0,0,n+1);
+	for (int i=0;i<m;i++){
+		int c,z; scanf("%d%d",&c,&x);
+		if (c==1){
+			scanf("%d%d",&y,&z);
+			addt(x,y,z);
+		}else if(c==2){
+			scanf("%d",&y);
+			printf("%d\n",askt(x,y));
+		}
+		else if (c==3){
+			scanf("%d",&y);
+			add(0,0,n+1,id[x],id[x]+siz[x],y);
+		}
+		else
+			printf("%d\n",ask(0,0,n+1,id[x],id[x]+siz[x]));
+	}
 }
 }
 
