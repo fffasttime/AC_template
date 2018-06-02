@@ -1014,6 +1014,175 @@ void caller(){
 #undef lcs
 #undef rcs
 }
+namespace Splay{
+const int maxn=100010;
+
+int val[maxn],siz[maxn],ch[maxn][2],pa[maxn],cnt[maxn];
+bool rev[maxn];
+int root,trcnt;
+#define lc ch[u][0]
+#define rc ch[u][1]
+void upd(int u){
+	siz[u]=cnt[u]+siz[lc]+siz[rc];
+}
+void pushdown(int u){
+	if (rev[u]){
+		rev[lc]^=1;rev[rc]^=1;
+		swap(lc,rc);
+		rev[u]=0;
+	}
+}
+void rot(int u, int c){
+	int p=pa[u];
+	ch[p][!c]=ch[u][c];
+	pa[ch[u][c]]=p; pa[u]=pa[p];
+	if (pa[u]) ch[pa[p]][ch[pa[u]][1]==p]=u;
+	ch[u][c]=p; pa[p]=u;
+	upd(p);
+}
+//u->under s
+void splay(int u, int s){
+	pushdown(u);
+	while (pa[u]!=s)
+		if (pa[pa[u]]==s) rot(u,ch[pa[u]][0]==u);
+		else{
+			int p=pa[u],pp=pa[p],c=(ch[pp][0]==p);
+			if (ch[p][c]==u) rot(u,!c),rot(u,c);
+			else rot(p,c),rot(u,c);
+		}
+	upd(u);
+	if (s==0) root=u;
+}
+//rank k->under s
+void rk(int k, int s){
+	int u=root;
+	k=max(k,1); k=min(k,siz[root]);
+	while (1){
+		pushdown(u);
+		if (k<=siz[lc]) u=lc;
+		else if (k>siz[lc]+cnt[u]) k-=siz[lc]+cnt[u],u=rc;
+		else break;
+	}
+	splay(u,s);
+}
+//x->under s
+void fi(int x, int s){
+	int u=root,p;
+	while (x!=val[u] && u)
+		p=u,u=ch[u][x>val[u]];
+	if (u && x==val[u]) splay(u,s);
+	else if (!u) splay(p,s);
+}
+void open(int &u, int x){
+	u=++trcnt;
+	lc=rc=pa[u]=0;
+	siz[u]=cnt[u]=1;
+	val[u]=x;
+}
+//root, value, parent
+void ins(int &u, int x, int p){
+	if (!u){
+		open(u,x); pa[u]=p;
+		splay(u,0);
+		return;
+	}
+	if (val[u]==x){
+		cnt[u]++,siz[u]++;
+		splay(u,0);
+		return;
+	}
+	else ins(ch[u][val[u]<x],x,u);
+	upd(u);
+}
+//delete root
+void del_(){
+	int u=root;
+	if (rc){
+		root=rc; rk(1,0);
+		ch[root][0]=lc;
+		if (ch[root][0]) pa[ch[root][0]]=root;
+	}
+	else root=lc;
+	pa[root]=0;
+	upd(root);
+}
+void del(int x){
+	fi(x,0);
+	if (val[root]==x)
+		if (cnt[root]>1) cnt[root]--,siz[root]--;
+		else del_();
+}
+int pred(int u, int x){
+	if (!u) return -0x3f3f3f3f;
+	if (val[u]<x) return max(val[u],pred(rc,x));
+	return pred(lc,x);
+}
+int succ(int u, int x){
+	if (!u) return 0x3f3f3f3f;
+	if (x<val[u]) return min(val[u],succ(lc,x));
+	return succ(rc,x);
+}
+void debug(int u, int deep){
+	if (!u) return;
+	debug(lc, deep+1);
+	for (int i=0;i<deep;i++) cout<<"  ";
+	cout<<val[u]<<' '<<siz[u]<<'\n';
+	debug(rc, deep+1);
+}
+int n,m;
+void dfs(int u){
+	if (!u) return;
+	pushdown(u);
+	dfs(lc);
+	if (val[u]>0 && val[u]<=n) cout<<val[u]<<' ';
+	dfs(rc);
+}
+void mian(){
+	int T; cin>>T;
+	while (T--){
+		int c,x; scanf("%d%d",&c,&x);
+		if (c==1)
+			ins(root,x,0);
+		else if (c==2)
+			del(x);
+		else if (c==3){ //get rk of x
+			fi(x,0); 
+			cout<<siz[ch[root][0]]+1<<'\n';
+		}
+		else if (c==4){ //get k th
+			rk(x,0);
+			cout<<val[root]<<'\n';
+		}
+		else if (c==5){ //pred
+			ins(root,x,0);
+			rk(siz[ch[root][0]],0);
+			cout<<val[root]<<'\n';
+			del(x);
+		}
+		else if (c==6){ //succ
+			ins(root,x,0);
+			rk(siz[ch[root][0]]+cnt[root]+1,0);
+			cout<<val[root]<<'\n';
+			del(x);
+		}
+		//debug(root,0);
+	}
+}
+int main(){ //reverse
+	cin>>n>>m;
+	for (int i=0;i<=n+1;i++) ins(root,i,0);
+	for (int i=0;i<m;i++){
+		int l,r; scanf("%d%d",&l,&r);
+		rk(l,0); rk(r+2,root);
+		rev[ch[ch[root][1]][0]]^=1;
+		//debug(root,0);
+	}
+	dfs(root); putchar('\n');
+	return 0;
+}
+#undef lc
+#undef rc
+}
 namespace ST{
 const int maxn=100010;
 int st[30][maxn],a[maxn];
@@ -1276,7 +1445,7 @@ void process(){
 }
 }
 }
-namespace CutTree{
+namespace SplitTree{
 const int maxn=100010;
 struct Edge{
 	int to,nxt;
