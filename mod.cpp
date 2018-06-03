@@ -8,6 +8,7 @@ using namespace std;
 #define fo(i,a,b) for (int i=a;i<b;i++)
 #define forr(i,b,a) for (int i=b-1;i>=a;i--)
 #define MP make_pair
+#define MS(a,x) memset(a,x,sizeof(a))
 #endif
 
 typedef long long ll;
@@ -619,11 +620,10 @@ int d[maxn][maxn],to[maxn],n,m;
 bool vis[maxn];
 
 bool xiong(int u){
-	vis[u]=1;
 	for (int i=0;i<m;i++)
 		if (d[u][i] && !vis[i]){
 			vis[i]=1;
-			if (!to[i] || xiong(to[i])){
+			if (to[i]==-1 || xiong(to[i])){
 				to[i]=u;
 				return 1;
 			}
@@ -633,6 +633,7 @@ bool xiong(int u){
 
 int match(){
 	int ans=0;
+	memset(to,-1,sizeof(to));
 	for (int i=0;i<n;i++){
 		memset(vis,0,sizeof(vis));
 		if (Xiong(i)) ans++;
@@ -957,7 +958,7 @@ void delx(Node* &u, TT x){
 	}
 	else u->s--,delx(u->c[u->x<x],x);
 }
-TT rk(Node *u, TT x){
+int rk(Node *u, TT x){
 	if (!u) return 0;
 	if (u->x==x) return lcs + 1;
 	if (u->x<x) return lcs + u->cnt + rk(rc,x);
@@ -1182,6 +1183,128 @@ int main(){ //reverse
 }
 #undef lc
 #undef rc
+}
+namespace NRTreap{
+const int maxn=100010;
+typedef int TT;
+struct Node{
+	Node *c[2];
+	TT x;
+	int s, r;
+	bool rev;
+}tree[maxn<<1];
+typedef pair<Node *,Node *> PD;
+int trcnt;
+Node *root;
+Node *open(int x){
+	tree[trcnt++]=(Node){0,0,x,1,rand(),0};
+	return tree+trcnt-1;
+}
+#define lc u->c[0]
+#define rc u->c[1]
+#define lcs (lc?lc->s:0)
+#define rcs (rc?rc->s:0)
+void upd(Node *u){
+	u->s=lcs+rcs+1;
+}
+void pushdown(Node *u){
+	if (u->rev){
+		if (lc) lc->rev^=1;
+		if (rc) rc->rev^=1;
+		swap(lc,rc);
+		u->rev=0;
+	}
+}
+Node *merge(Node *u, Node *v){
+	if (!u || !v) return max(u,v);
+	pushdown(u); pushdown(v);
+	if (u->r<v->r) {rc=merge(rc,v);upd(u);return u;}
+	else {v->c[0]=merge(u,v->c[0]);upd(v);return v;} 
+}
+PD split(Node *u, int k){
+	if (!u) return MP((Node *)0,(Node *)0);
+	pushdown(u);
+	PD t;
+	if (k<=lcs){
+		t=split(lc,k);
+		lc=t.second;
+		upd(u);
+		t.second=u;
+	}
+	else{
+		t=split(rc,k-lcs-1);
+		rc=t.first;
+		upd(u);
+		t.first=u;
+	}
+	return t;
+}
+int rk(Node *u, TT x){
+	if (!u) return 0;
+	if (u->x<x) return lcs + 1 + rk(rc,x);
+	else return rk(lc, x);
+}
+int findr(Node *u, int r){
+	if (!u) return 0;
+	if (r<=lcs) return findr(lc,r);	r-=lcs;
+	if (r==1) return u->x; r--;
+	return findr(rc,r);
+}
+void ins(TT x){
+	int k=rk(root,x);
+	PD t=split(root,k);
+	Node *u=open(x);
+    root=merge(t.first,merge(u,t.second));
+}
+//t1.second is deleted
+void del(TT x){
+	int k=rk(root,x);
+	PD t1=split(root,k),t2=split(t1.second,1);
+	root=merge(t1.first,t2.second);
+}
+void debug(Node *u, int deep=0){
+	if (lc) debug(lc,deep+1);
+	for (int i=0;i<deep;i++) cout<<"   ";
+	cout<<u->x<<' '<<u->s<<' '<<u->rev<<'\n';
+	if (rc) debug(rc,deep+1);
+}
+int n;
+void dfs(Node *u){
+	if (!u) return;
+	pushdown(u);
+	dfs(lc);
+	if (u->x>0 && u->x<=n) cout<<u->x<<' ';
+	dfs(rc);
+}
+int mian(){
+	int T;cin>>T;
+	while (T--)	{
+		int c,x; scanf("%d%d",&c,&x);
+		if (c==1) ins(x);
+		if (c==2) del(x);
+		if (c==3) cout<<rk(root,x)+1<<'\n';
+		if (c==4) cout<<findr(root,x)<<'\n';
+		if (c==5) cout<<findr(root,rk(root,x))<<'\n';
+		if (c==6) cout<<findr(root,rk(root,x+1)+1)<<'\n';
+		//dfs(root),cout<<'\n';
+	}
+	return 0;
+}
+int main(){ //reverse
+	int m;cin>>n>>m;
+	for (int i=0;i<=n+1;i++) ins(i);
+	for (int i=0;i<m;i++){
+		int l,r; scanf("%d%d",&l,&r);
+		PD x=split(root,l);
+		PD y=split(x.second,r-l+1);
+		y.first->rev^=1;
+		root=merge(x.first,merge(y.first,y.second));
+		//dfs(root); putchar('\n');
+		//debug(root);
+	}
+	dfs(root); putchar('\n');
+	return 0;
+}
 }
 namespace ST{
 const int maxn=100010;
