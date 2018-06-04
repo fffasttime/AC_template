@@ -1698,6 +1698,53 @@ void process(){
 	}
 }
 }
+//data structure of xor sum
+namespace XorBase{
+//we may need <bitset> sometimes
+typedef unsigned long long ll;
+ll base[64];
+void add(ll x){
+	for (int i=63;i>=0;i--)
+		if (x&1ull<<i)
+			if (!base[i]){
+				base[i]=x;
+				return;
+			}
+			else x^=base[i];
+}
+//test if x can perform by xor sum
+bool test(ll x){
+	for (int i=63;i>=0;i--)
+		if (x&1ull<<i)
+			if (!base[i]) return 0;
+			else x^=base[i];
+	return 1;
+}
+//max xor sum
+ll maxc(){
+	ll ans=0;
+	for (int i=63;i>=0;i--)
+		if ((ans^base[j])>ans)
+			ans^=base[i];
+	return ans;
+}
+//min xor sum
+ll minc(){for (int i=0;i<64;i++) if (base[i]) return base[i];}
+//query kth max number
+//k should not larger than 2^(dim linspan(x))
+ll kth(ll k){
+	ll ans=0,tmp[64],res=0,cnt=0;
+    for(T i=0;i<64;i++){ //set matrix to simplest form
+        for(int j=i-1;j>=0;j--)
+			if(base[i]&1ull<<j) base[i]^=base[j];
+        if(base[i])tmp[cnt++]=base[i];
+    }
+	for (int i=63;i>=0;i--)
+		if (k&1ull<<i)
+			ans^=base[i];
+	return ans;
+}
+}
 
 int main(){
 	return 0;
