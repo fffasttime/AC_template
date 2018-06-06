@@ -8,6 +8,7 @@ using namespace std;
 #define fo(i,a,b) for (int i=a;i<b;i++)
 #define forr(i,b,a) for (int i=b-1;i>=a;i--)
 #define MP make_pair
+#define PII pair<int,int>
 #define MS(a,x) memset(a,x,sizeof(a))
 #endif
 
@@ -241,22 +242,22 @@ struct Q{
 	bool operator<(const Q &v){return p*v.q<v.p*q;}
 	double d(){return (double)p/q;}
 };
-
+//calc C(n,m), means select m object from n object
 namespace LUCAS{
-const ll luo=10007;
-ll fact[luo],vfact[luo];
+const ll p=10007;
+ll fact[p],vfact[p];
 ll comb(ll n,ll m){
 	if (n<m) return 0;
-	return fact[n]*vfact[n-m]%luo*vfact[m]%luo;
+	return fact[n]*vfact[n-m]%p*vfact[m]%p;
 }
 ll lucas(ll n,ll m){
 	if (m==0) return 1;
-	return lucas(n/luo,m/luo)*comb(n%luo,m%luo)%luo;
+	return lucas(n/p,m/p)*comb(n%p,m%p)%p;
 }
 void pre(){
 	fact[0]=1;
-	for (int i=1;i<luo;i++) fact[i]=fact[i-1]*i%luo;
-	for (int i=0;i<luo;i++) vfact[i]=qpow(fact[i], luo-2, luo);
+	for (int i=1;i<p;i++) fact[i]=fact[i-1]*i%p;
+	for (int i=0;i<p;i++) vfact[i]=qpow(fact[i], p-2, p);
 }
 }
 
@@ -877,22 +878,29 @@ int MCMF(){
 }
 
 namespace SAM{
-const int maxn=100001,alpha=26;
+const int maxn=100010,alpha=26;
 
 struct Node{
 	int l,num; bool vis;
 	Node *p, *tr[alpha];
-	vector<Node *>ch;
-	Node (int _l):l(_l){memset(tr,0,sizeof(tr));p=0;num=1;vis=0;}
-};
+	//vector<Node *> ch;
+	void set(int _l){l=_l;memset(tr,0,sizeof(tr));p=0;num=1;vis=0;/*ch.clear();*/}
+}nodes[maxn<<1];
+int nodec;
 Node *root;
-void build(){
+Node *open(int l){
+	nodes[nodec++].set(l);
+	return nodes+nodec-1;
+}
+void build(char *s){
+	nodec=0;
 	Node *cur;
-	cur=root=new Node(0);
+	int sl=strlen(s);
+	cur=root=open(0);
 	for (int i=0;i<sl;i++){
-		int x=s1[i]-'a';
+		int x=s[i]-'a';
 		Node *p=cur;
-		cur=new Node(i+1);
+		cur=open(i+1);
 		for (;p && !p->tr[x];p=p->p)
 			p->tr[x]=cur;
 		if (!p) cur->p=root;
@@ -900,12 +908,53 @@ void build(){
 			Node *q=p->tr[x];
 			if (p->l+1==q->l) cur->p=q;
 			else{
-				Node *r=new Node(-1); r[0]=q[0]; r->l=p->l+1;
-				q->p=r; cur->p=r;
+				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
+				q->p=r; cur->p=r; r->num=0;
 				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
 			}
 		}
 	}
+}
+//get substr last position
+int pos(Node *u, char *s){
+	if (*s==0) return u->l;
+	if (!u->tr[*s-'a']) return -1;
+	return pos(u->tr[*s-'a'],s+1);
+}
+//get count substr
+int cnt(Node *u, char *s){
+	if (*s==0) return u->num;
+	if (!u->tr[*s-'a']) return 0;
+	return cnt(u->tr[*s-'a'],s+1);
+}
+using ATTR;
+int t[maxn],r[maxn]; //t:temp, r:rank
+//init |right(s)| before cnt
+void initnum(){
+	inc(i,nodec) t[nodes[i].l]++;
+	fo(i,1,s0l+1) t[i]+=t[i-1];
+	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
+	forr(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
+}
+int lcs(char *x1){
+	int lcs=0, ans=0, xl=strlen(x1);
+	inc(i,xl){
+		int x=x1[i]-'a';
+		if (p->tr[x]){
+			lcs++;
+			p=p->tr[x];
+			ans=max(ans,lcs);
+			continue;
+		}
+		for (;p && !p->tr[x];p=p->p);
+		if (!p) p=root,lcs=0;
+		else{
+			lcs=p->l+1;
+			p=p->tr[x];
+		}
+		ans=max(ans,lcs);
+	}
+	return ans;
 }
 }
 
