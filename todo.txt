@@ -31,14 +31,14 @@ pb_ds?
 数学内容
 
 数论
-GCD辗转相除
-埃氏筛/线性筛
-扩展欧几里得
-逆元(扩欧、费马小定理)
-模线性方程组:中国剩余定理
-素数判断(Normal、Miller_Rabin)
-因数分解(Normal、p_rho)
-离散对数
+.GCD辗转相除
+.埃氏筛/线性筛
+.扩展欧几里得
+.逆元(扩欧、费马小定理)
+.模线性方程组:中国剩余定理
+.素数判断(Normal、Miller_Rabin)
+.因数分解(Normal、p_rho)
+.离散对数
 原根
 莫比乌斯反演
 杂项 反素数
@@ -46,29 +46,29 @@ GCD辗转相除
 FFT(NTT)，FWT
 多项式代数计算
 
-高斯消元
+.高斯消元
 数值算法 
-求导、simpson积分
+.求导、simpson积分
 二分、牛顿求根
-三分极值
+.三分极值
 
 组数
 排列组合、polya、容斥、划分
-lucas定理
+.+lucas定理
 母函数
 
 字符串
 哈希
 kmp/扩展kmp
-Manacher回文
+.Manacher回文
 AC自动机
 回文自动机
-后缀自动机
+.后缀自动机
 
 图论
 图形
 最短路
- Floyed、Dijkstra、SPFA
+.Floyed、Dijkstra、SPFA
 次短路
 最小生成树 prim、kruskal
 次小生成树 
@@ -77,26 +77,26 @@ AC自动机
 哈密顿回路
 无向图割点、桥 tarjan
 最大团
-二分图 匈牙利
+.二分图 匈牙利
 二分图权 EK
 一般图 带花树
 弦图
 
 树形
-LCA
+.LCA
 直径、重心
 树分治
 
 数据结构
-并查集
-树状数组
-线段树
-平衡树 treap splay sbt
+.并查集
+.树状数组
+.线段树
+.平衡树 treap splay sbt
 分块结构
 主席树
 Trie
-RMQ ST表
-树链剖分
+.RMQ ST表
+.树链剖分
 莫对
 动态树
 

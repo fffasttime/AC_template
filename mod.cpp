@@ -16,16 +16,25 @@ typedef long long ll;
 typedef double db;
 struct T{};
 
+//warning: Can't use other input method while using fread.
 int rc(){
 	//return getchar(); //if use fread, input won't stop until EOF
 	static char buf[10000],*p1=buf,*p2=buf;
 	return p1==p2&&(p2=(p1=buf)+fread(buf,1,10000,stdin),p1==p2)?EOF:*p1++;
 }
 int rd(int &x){
-	x=0; int f=1,c=rc(), fa=0;
-	while (!isdigit(c)) c=='-'?f=-1:0,c=rc();
-	while (isdigit(c)) x=x*10+c-'0', c=rc(), fa=1;
-	x*=f; return fa;
+	x=0; int f=1,c=rc();
+	while (!isdigit(c) && c!=-1) c=='-'?f=-1:0,c=rc();
+	if (c==-1) return 0;
+	while (isdigit(c)) x=x*10+c-'0', c=rc();
+	x*=f; return 1;
+}
+int rd(char *x){
+	int c=rc();
+	while (isspace(c) && c!=-1) c=rc();
+	if (c==-1) return 0;
+	while (!isspace(c) && c!=-1) *(x++)=c,c=rc();
+	*x=0; return 1;
 }
 
 int qrand(){
@@ -136,7 +145,7 @@ ll china(int n, ll a[], ll p[]){
 	for (int i=0;i<n;i++) M*=p[i];
 	for (int i=0;i<n;i++)	{
 		ll w=M/m[i]; //x=pi*k1+a + w*k2
-		x=(x+w*inv(m[i],w)*a[i])%M; //k1 pi*k1=a (Mod w)
+		x=(x+w*inv(m[i],w)%M*a[i])%M; //get k1, pi*k1=a (Mod w)
 	}
 	return (x+M)%M;
 }
@@ -146,9 +155,9 @@ ll china(int n, ll a[], ll p[]){
 //x=a2(mod m2)
 //...
 ll china1(int n, ll a[], ll p[]){
-	ll n1=a[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
+	ll n1=p[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
 	for (int i=1;i<n;i++){//依次合并方程
-		n2=n[i],a2=a[i]; 
+		n2=p[i],a2=a[i]; 
 		c=a2-a1;
 		gcd=exgcd(n1,n2,k1,k2); //n1*k1+n2*k2=gcd(n1,n2)
 		if (c%gcd) return -1;
@@ -260,7 +269,29 @@ void pre(){
 	for (int i=0;i<p;i++) vfact[i]=qpow(fact[i], p-2, p);
 }
 }
-
+namespace NumericalMethod{
+//Three division method, require a convex function
+double fargmax(double l, double r){
+	while (r-l>eps){
+		double d1=(l+l+r)/3,d2=(l+r+r)/3;
+		if (f(d1)>f(d2)) r=d2;
+		else l=d1;
+	}
+	return r;
+}
+double simpson(double l,double r){
+	return (r-l)*(f(l)+4*f((l+r)/2)+f(r))/6;	
+}
+double asr(double l, double r, double ans){
+	double mid=(l+r)/2;
+	double left=simpson(l,mid),right=simpson(mid,r);
+	if (fabs(left+right-ans)<eps) return left+right;
+	else return asr(l,mid,left)+asr(mid,r,right);
+}
+//use simpson method
+//warning: avoid odd point
+double intergrate(double l, double r){return asr(l,r,simpson(l,r));}
+}
 namespace Graph{
 
 const int maxn=10010,maxm=100010,inf=0x3f3f3f3f;
@@ -321,7 +352,7 @@ void dijk(int s){
 	memset(vis,0,sizeof(vis));
 	dis[s]=0;
 	priority_queue<pair<int,int>> qu;
-	qu.push(make_pair(0,s))
+	qu.push(make_pair(0,s));
 	while (qu.size()){
 		int u=qu.top().second, mc=-qu.top().first;
 		qu.pop();
@@ -330,7 +361,7 @@ void dijk(int s){
 		for (int e=head[u];e;e=nxt[e])
 			if (!vis[to[e]] && mc+co[e]<dis[to[e]]){
 				dis[to[e]]=mc+co[e];
-				qu.push(make_pair(-dis[to[e]],to[e]))
+				qu.push(make_pair(-dis[to[e]],to[e]));
 			}
 	}
 }
@@ -456,12 +487,52 @@ int circle_dp(){
 	cout<<tans<<'\n';
 	return 0;
 }
+
+int kruskal(){
+	int n,m; scanf("%d%d",&n,&m);
+	for (int i=1;i<=n;i++) fa[i]=i;
+	for (int i=0;i<m;i++) scanf("%d%d%d",&ed[i].x,&ed[i].y,&ed[i].c);
+	sort(ed,ed+m);
+	int ans=0;
+	for (int i=0;i<m;i++){
+		int ta=fi(ed[i].x), tb=fi(ed[i].y);
+		if (ta!=tb)
+			ans+=ed[i].c,
+			fa[ta]=tb;
+	}
+	cout<<ans<<'\n';
+	return ans;
+}
+//heap opt prim, O((n+m)log(m))
+int prim(){
+	memset(dis,0x3f,sizeof(dis));
+	memset(vis,0,sizeof(vis));
+	dis[1]=0;
+	priority_queue<pair<int,int> > qu;
+	qu.push(make_pair(0,1));
+	int ans=0;
+	while (qu.size()){
+		int u=qu.top().second,c=qu.top().first;
+		qu.pop();
+		if (vis[u]) continue;
+		ans-=c;
+		vis[u]=1;
+		for (int e=head[u];e;e=nxt[e])
+			if (!vis[to[e]]){
+				dis[to[e]]=co[e];
+				qu.push(make_pair(-co[e],to[e]));
+			}
+	}
+	return ans;
+}
+
 }
 
 namespace FFT
 {
 typedef complex<double> cd;
-const int maxl=(1<<20)+1,pi=3.14159265358979;
+const int maxl=(1<<20)+1;
+const double pi=3.14159265358979;
 cd a[maxl],b[maxl];
 int rev[maxl];
 void get_rev(int bit){
@@ -484,9 +555,38 @@ void fft(cd a[], int n, int dft){
 	}
 	if (dft==-1) for (int i=0;i<n;i++) a[i]/=n;
 }
-
-char s1[maxl],s2[maxl];
-int ans[maxl];
+const ll G=3,P=1004535809;
+void ntt(ll *a, int n, int dft){
+	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
+	for (int s=1;s<n;s<<=1){
+		ll wn=qpow(G,dft==1?(P-1)/s/2:P-1-(P-1)/s/2,P);
+		for (int j=0;j<n;j+=s<<1){
+			ll wnk=1;
+			for (int k=j;k<j+s;k++){
+				ll x=a[k],y=wnk*a[k+s]%P;
+				a[k]=(x+y)%P; //merge
+				a[k+s]=(x-y+P)%P;
+				wnk=wnk*wn%P;
+			}
+		}
+	}
+	if (dft==-1) {
+		ll inv=qpow(n,P-2,P);
+		for (int i=0;i<n;i++) a[i]=a[i]*inv%P;
+	}
+}
+void conv(ll *fa, ll *fb, int s, ll *ret){
+	static ll a[maxl],b[maxl];
+	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
+	fft(a,s,1); fft(b,s,1);
+	for (int i=0;i<s;i++) a[i]*=b[i];
+	fft(a,s,-1);
+	memcpy(ret,a,sizeof(ll)*s);
+}
+ll a[maxl],b[maxl];
+int ans[maxl],_;
+char s1[100010],s2[100010];
+//fast mul
 void mul(){
 	scanf("%s%s",s1,s2);
 	int l1=strlen(s1),l2=strlen(s2);
@@ -494,13 +594,11 @@ void mul(){
 	for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
 	for (int i=0;i<l1;i++) a[i]=s1[l1-i-1]-'0';
 	for (int i=0;i<l2;i++) b[i]=s2[l2-i-1]-'0';
-	get_rev(bit);
-	fft(a,s,1); fft(b,s,1);
-	for (int i=0;i<s;i++) a[i]*=b[i];
-	fft(a,s,-1);
+	conv(a,b,s,a);
+	for (int i=0;i<s;i++) cout<<a[i]<<' '; cout<<'\n';
 	for (int i=0;i<s;i++){
-		ans[i]+=(int)(a[i].real()+0.5);
-		ans[i+1]+=output[i]/10;
+		ans[i]+=a[i];
+		ans[i+1]+=ans[i]/10;
 		ans[i]%=10;
 	}
 	int i;
@@ -509,7 +607,31 @@ void mul(){
 	for (;i>=0;i--) printf("%d",ans[i]);
 	putchar('\n');
 }
-
+ll P1=1004535809,P2=998244353,P3=469762049;
+ll res[3][maxl];
+//conv a sequence with mod p, while p<P1*P2*P3
+void conv_mod(){
+	int l1,l2; ll p;
+    rd(l1); rd(l2); l1++; l2++;
+    int s=2,bit=1;
+    for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
+	get_rev(bit);
+    int r; rd(r); p=r;
+    for (int i=0;i<l1;i++) rd(r),a[i]=r;
+    for (int i=0;i<l2;i++) rd(r),b[i]=r;
+    G=3,P=P1; conv(a,b,s,res[0]);
+    G=3,P=P2; conv(a,b,s,res[1]);
+    G=3,P=P3; conv(a,b,s,res[2]);
+    ll M=P1*P2;
+    for (int i=0;i<l1+l2-1;i++){
+    	//printf("%lld %lld %lld \n",res[0][i],res[1][i],res[2][i]);
+    	ll A=(qmul(res[0][i]*P2%M,inv(P2%P1,P1),M)+
+			qmul(res[1][i]*P1%M,inv(P1%P2,P2),M))%M;
+		ll K=((res[2][i]-A)%P3+P3)%P3*inv(M%P3,P3)%P3;
+		//cout<<A<<' '<<K<<' ';
+		printf("%lld ", (K%p*(M%p)+A)%p);
+    }
+}
 }
 
 namespace Expr{
@@ -958,6 +1080,25 @@ int lcs(char *x1){
 }
 }
 
+namespace Manacher{
+const int maxn=10000000;
+int p[maxn<<1],s[maxn<<1],s0[maxn];
+int sl,s0l;
+int manacher(){
+    s0l=strlen(s0);
+    sl=1; s[0]='$'; s[1]='#';
+    inc(i,s0l) s[++sl]=s0[i],s[++sl]='#';
+    s[++sl]=0;
+    int mx=0,mi=0,ans=0;
+    fo(i,1,sl){
+        p[i]=i<mx?min(p[mi*2-i], mx-i):1;
+        while (s[i-p[i]]==s[i+p[i]]) p[i]++;
+        if (mx<i+p[i]) mi=i,mx=i+p[i];
+        ans=max(ans,p[i]-1);
+    }
+    return ans;
+}
+}
 namespace Treap{
 //TT: an ordered struct
 typedef int TT;
