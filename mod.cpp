@@ -1,20 +1,32 @@
-#include <iostream>
+/*
+Name: 
+Author: fffasttime 
+Date: 
+Description: 
+*/
+#include <bits/stdc++.h>
 using namespace std;
-
+#define USE_ATTR
 #ifdef USE_ATTR
 #define inc(i,n) for (int i=0;i<n;i++)
-#define inc_(i,n) for (int i=1;i<=n;i++)
+#define icc(i,n) for (int i=1;i<=n;i++)
 #define dec(i,n) for (int i=n-1;i>=0;i--)
-#define fo(i,a,b) for (int i=a;i<b;i++)
-#define forr(i,b,a) for (int i=b-1;i>=a;i--)
+#define rep(i,a,b) for (int i=a;i<b;i++)
+#define per(i,b,a) for (int i=b-1;i>=a;i--)
+
+#define MS(a,x) memset(a,x,sizeof(a))
+//we can use initiallist in c++1x
 #define MP make_pair
 #define PII pair<int,int>
-#define MS(a,x) memset(a,x,sizeof(a))
+//std=c++11
+#define MT make_tuple
+#define TIII tuple<int, int, int>
+
 #endif
 
 typedef long long ll;
 typedef double db;
-struct T{};
+typedef ll T;
 
 //warning: Can't use other input method while using fread.
 int rc(){
@@ -57,14 +69,7 @@ T qpow(T a, int x){
 			ans*=a;
 	return ans;
 }
-ll qpow(ll a, int x){
-	T ans=1;
-	for (;x;a*=a,x>>=1)
-		if (x&1)
-			ans*=a;
-	return ans;
-}
-ll qpow(ll a, int x, ll p){
+ll qpow(ll a, ll x, ll p){
 	ll ans=1;
 	for (;x;a=qmul(a,a,p),x>>=1)
 		if (x&1)
@@ -72,13 +77,13 @@ ll qpow(ll a, int x, ll p){
 	return ans;
 }
 
-const int N;
+const int N=100;
 struct Mat{
 	ll m[N][N];
-	Mat(){memset(m,0,sizoef(m));}
-	I(){for (int i=0;i<n;i++) m[i][i]=0;}
-}
-Mat mul(const &Mat a, const &Mat b){
+	Mat(){memset(m,0,sizeof(m));}
+	void I(){for (int i=0;i<N;i++) m[i][i]=1;}
+};
+Mat mul(const Mat &a, const Mat &b){
 	Mat c;
 	for (int i=0;i<N;i++)
 		for (int j=0;j<N;j++){
@@ -86,6 +91,7 @@ Mat mul(const &Mat a, const &Mat b){
 				c.m[i][j]+=a.m[i][j]*b.m[i][j];
 			//c.m[i][j]%=p;
 		}
+	return c;
 }
 Mat qpow(Mat a, int x){
 	Mat ans; ans.I();
@@ -95,7 +101,7 @@ Mat qpow(Mat a, int x){
 	return ans;
 }
 
-const int maxn;
+const int maxn=1000010;
 int p[maxn],phi[maxn],pc;
 bool isp[maxn];
 
@@ -119,18 +125,25 @@ int inv(int x, int p){
 	return qpow(x,p-2,p);
 }
 
+int invt[maxn];
+void invTable(int maxl, int p){
+	invt[1]=1;
+	for (int i=2;i<=maxl;i++)
+		invt[i]=invt[p%i]*(p-p/i)%p;
+}
+
 //ax+by=gcd(a,b)
-int exgcd(int a, int b, int &x, int &y){
+ll exgcd(ll a, ll b, ll &x, ll &y){
 	if (b==0){
 		x=1;y=0;
 		return a;
 	}
-	int t=exgcd(b,a%b,y,x);
+	ll t=exgcd(b,a%b,y,x);
 	y-=a/b*x;
 	return t;
 }
-int inv(int v, int p){
-	int x,y;
+ll inv_euclid(ll v, ll p){
+	ll x,y;
 	if (exgcd(v,p,x,y)==1)
 		return (x+p)%p;
 	else
@@ -144,8 +157,8 @@ ll china(int n, ll a[], ll p[]){
 	ll M=1,x=0;
 	for (int i=0;i<n;i++) M*=p[i];
 	for (int i=0;i<n;i++)	{
-		ll w=M/m[i]; //x=pi*k1+a + w*k2
-		x=(x+w*inv(m[i],w)%M*a[i])%M; //get k1, pi*k1=a (Mod w)
+		ll w=M/p[i]; //x=pi*k1+a + w*k2
+		x=(x+w*inv(p[i],w)%M*a[i])%M; //get k1, pi*k1=a (Mod w)
 	}
 	return (x+M)%M;
 }
@@ -172,9 +185,9 @@ ll china1(int n, ll a[], ll p[]){
 //discrete logarithm
 //a^x=b(mod p)
 ll BSGS(ll a, ll b, ll p){
-	int m,v,e=1,i;
+	int m,v,e=1;
 	m=(int)sqrt(p+0.5);
-	v=inv(pow(a,m,p),p);
+	v=inv(qpow(a,m,p),p);
 	map<int,int> x; //hash_map -> O(sqrt(N))
 	x[1]=0;
 	for (int i=1;i<m;i++){
@@ -192,7 +205,7 @@ ll BSGS(ll a, ll b, ll p){
 const ll p0[]={2,3,5,7,11,13,17,19,23,29,31};
 
 //a^(p-1)=1 (mod p) , x^2=1 (mod p) while x=1 or p-1
-bool witness(ll a,ll b,ll r,ll s){
+bool witness(ll a,ll n,ll r,ll s){
 	ll x=qpow(a,r,n),pre=x;
 	for (int i=0;i<s;i++){
 		x=qmul(x,x,n);
@@ -205,11 +218,13 @@ bool witness(ll a,ll b,ll r,ll s){
 
 bool MillerRabin(ll n){
 	if (n<=1) return 0;
+	if (n==2) return 1;
+	if (n%2==0) return 0;
 	ll r=n-1,s=0;
 	while (!(r&1)) r>>=1,s++;
 	for (int i=0;i<10;i++){
 		if (p0[i]==n) return 1;
-		if (!check(p0[i],n,r,s)) return 0;
+		if (!witness(p0[i],n,r,s)) return 0;
 	}
 	return 1;
 }
@@ -226,10 +241,10 @@ ll pol_rho(ll n,ll c){
 	return p;
 }
 
-void spiltprime(ll n)
-{
+vector<int> primes;
+void spiltprime(ll n){
 	if (n==1) return;
-	if (MillerRabin(n)) {maxs=max(maxs,n); return;} //n is prime factor
+	if (MillerRabin(n)) {primes.push_back(n); return;} //n is prime factor
 	ll t=n;
 	while (t==n) t=pol_rho(n,rand()%(n-1));
 	spiltprime(t); spiltprime(n/t);
@@ -270,6 +285,10 @@ void pre(){
 }
 }
 namespace NumericalMethod{
+double eps=1e-8;
+double f(double x){
+	return x;
+}
 //Three division method, require a convex function
 double fargmax(double l, double r){
 	while (r-l>eps){
@@ -292,13 +311,31 @@ double asr(double l, double r, double ans){
 //warning: avoid odd point
 double intergrate(double l, double r){return asr(l,r,simpson(l,r));}
 }
+
+namespace UFSet{
+const int maxn=100010;
+int fa[maxn];
+void clear(){
+	for (int i=0;i<maxn;i++) fa[i]=i;
+}
+int fi(int x){
+	if (fa[x]!=x)
+		fa[x]=fi(fa[x]);
+	return fa[x];
+}
+void un(int a, int b){
+	int ta=fi(a),tb=fi(b);
+	if (ta!=tb) fa[ta]=tb;
+}
+}
+
 namespace Graph{
 
 const int maxn=10010,maxm=100010,inf=0x3f3f3f3f;
 int head[maxn],nxt[maxm],to[maxm],co[maxm],ec;
 int n;
 bool vis[maxn];
-int ans[maxn][maxn],dis[maxn],c[maxn];
+int dis[maxn],c[maxn];
 
 void added(int x, int y, int c){
 	ec++;
@@ -308,32 +345,37 @@ void added(int x, int y, int c){
 	co[ec]=c;
 }
 
+//wrost O(n^3), but as fast as dijkstra in random data.
 int spfa(int s){
 	queue<int> q;
 	memset(dis,0x3f,sizeof(dis));
 	dis[s]=0;
-	memset(c,0,sizeof(c)); //判负环
+	memset(c,0,sizeof(c)); //judge nagetive loop
 	memset(vis,0,sizeof(vis));
-	q.push(s); vis[s]=c[s]=1;
+	q.push(s); vis[s]=1; c[s]=1;
 	while (!q.empty())	{
 		int u=q.front(); q.pop();
-		vis[x]=0;
-		for (int e=head[x];e;e=nxt[e]){
-			int v=to[k];
-			if (dis[u]+co[k]<dis[v]){
-				dis[v]=dis[u]+co[i];
+		vis[u]=0;
+		for (int e=head[u];e;e=nxt[e]){
+			int v=to[e];
+			if (dis[u]+co[e]<dis[v]){
+				dis[v]=dis[u]+co[e];
 				if (!vis[v]){
 					vis[v]=1;
 					c[v]++;
 					q.push(v);
-					if (c[v]]>n) return -0x3f3f3f3f;
+					if (c[v]>n) return 0; //has nagetive
 				}
 			}
 		}
 	}
+	return 1;
 }
-//judge negative circle
-//!-- Some reasons show it's unreliable
+/*
+judge negative circle
+!-- Discarded, some reasons show it's time complexity is unreliable,
+thought it runs fast in random data.
+*/
 bool spfa_dfsjudge(int u){
 	vis[u]=1;
 	for (int e=head[u];e;e=nxt[e]){
@@ -365,7 +407,7 @@ void dijk(int s){
 			}
 	}
 }
-
+int d[maxn][maxn],mp[maxn][maxn];
 void floyd(){
 	for (int k=0;k<n;k++)
 		for (int i=0;i<n;i++)
@@ -374,7 +416,8 @@ void floyd(){
 					d[i][j]=d[i][k]+d[k][j];
 }
 
-//mp为原图，求无向图最小环。有向图为d[i][i]。
+//For undirected graph min loop
+//!-- In directed graph, use floyd() and d[i][i].
 int floyd_minc(){
 	int minc=inf;
 	for (int k=0;k<n;k++){
@@ -391,7 +434,7 @@ int floyd_minc(){
 
 vector<int> ed[maxn];
 bool ins[maxn];
-int st[maxn],stn[maxn],low[maxn],idx,scn;
+int st[maxn],stn,dfn[maxn],low[maxn],idx,scn;
 vector<int> scc[maxn];
 
 void tarjan(int u){
@@ -420,6 +463,8 @@ void tarjan_Caller(){
 		if (!dfn[i])
 			tarjan(i);
 }
+
+// !-- untested
 bool iscut[maxn];
 void tarjan_point(int u, int fa){
 	int ch=0;
@@ -437,22 +482,24 @@ void tarjan_point(int u, int fa){
 	}
 	if (fa<0 && ch==1) iscut[u]=0;
 }
+int ansx[maxn],ansy[maxn],ansc;
 void tarjan_ed(int u, int fa){
 	low[u]=dfn[u]=++idx;
 	for (int i=0;i<ed[u].size();i++){
-		int v=vec[u][i];
+		int v=ed[u][i];
 		if (!dfn[v]){
-			tarjan(v,u);
+			tarjan_ed(v,u);
 			low[u]=min(low[u],low[v]);
 			if (low[v]>dfn[u])
-				ansx[ansc]=x,ansy[ansc++]=y;
+				ansx[ansc]=u,ansy[ansc++]=v;
 		}
 		else if (dfn[v]<dfn[u] && v!=fa)
 			low[u]=min(low[u],dfn[v]);
 	}
 }
 
-int qu[maxn],vis[maxn],ans[maxn];
+int qu[maxn],a[maxn],from[maxn],ind[maxn],sum[maxn],ans[maxn];
+vector<int> ed2[maxn];
 
 int circle_dp(){
 	int n,m; scanf("%d%d",&n,&m);
@@ -475,8 +522,7 @@ int circle_dp(){
 	for (int i=0;i<scn;i++) if (!ind[i]) qu[tail++]=i,ans[i]=sum[i],tans=max(tans,ans[i]);
 	while (head<tail){
 		int u=qu[head];
-		for (int i=0;i<ed2[u].size();i++)
-		{
+		for (int i=0;i<ed2[u].size();i++){
 			int v=ed2[u][i];
 			ind[v]--;
 			ans[v]=max(ans[v],ans[u]+sum[v]),tans=max(tans,ans[v]);
@@ -487,8 +533,9 @@ int circle_dp(){
 	cout<<tans<<'\n';
 	return 0;
 }
-
+#ifdef NO_COMPILE
 int kruskal(){
+	using namespace UFSet;
 	int n,m; scanf("%d%d",&n,&m);
 	for (int i=1;i<=n;i++) fa[i]=i;
 	for (int i=0;i<m;i++) scanf("%d%d%d",&ed[i].x,&ed[i].y,&ed[i].c);
@@ -503,6 +550,7 @@ int kruskal(){
 	cout<<ans<<'\n';
 	return ans;
 }
+#endif
 //heap opt prim, O((n+m)log(m))
 int prim(){
 	memset(dis,0x3f,sizeof(dis));
@@ -525,7 +573,22 @@ int prim(){
 	}
 	return ans;
 }
-
+#ifdef NO_COMPILE
+int deg[maxn],ansp[maxm],al,anse[maxm<<1],el;
+//O(n+m), euler cycle
+//the graph MUST BE only 0 or 2 odd node, and if there is 2 odd node, u must be odd node
+void euler(int u){
+	for (int e=head[u];e;e=ed[e].nxt){
+		int v=ed[e].to;
+		if (!ed[e].vis && !ed[e^1].vis){
+			ed[e].vis=ed[e^1].vis=1;
+			euler(v);
+			anse[++el]=e;//ed
+		}
+	}
+	ansp[++al]=u;
+}
+#endif
 }
 
 namespace FFT
@@ -533,7 +596,6 @@ namespace FFT
 typedef complex<double> cd;
 const int maxl=(1<<20)+1;
 const double pi=3.14159265358979;
-cd a[maxl],b[maxl];
 int rev[maxl];
 void get_rev(int bit){
 	for (int i=0;i<(1<<bit);i++)
@@ -555,7 +617,7 @@ void fft(cd a[], int n, int dft){
 	}
 	if (dft==-1) for (int i=0;i<n;i++) a[i]/=n;
 }
-const ll G=3,P=1004535809;
+ll G=3,P=1004535809;
 void ntt(ll *a, int n, int dft){
 	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
 	for (int s=1;s<n;s<<=1){
@@ -575,19 +637,27 @@ void ntt(ll *a, int n, int dft){
 		for (int i=0;i<n;i++) a[i]=a[i]*inv%P;
 	}
 }
-void conv(ll *fa, ll *fb, int s, ll *ret){
-	static ll a[maxl],b[maxl];
+void conv(cd *fa, cd *fb, int s, cd *ret){
+	static cd a[maxl],b[maxl];
 	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
 	fft(a,s,1); fft(b,s,1);
 	for (int i=0;i<s;i++) a[i]*=b[i];
 	fft(a,s,-1);
 	memcpy(ret,a,sizeof(ll)*s);
 }
-ll a[maxl],b[maxl];
+void conv(ll *fa, ll *fb, int s, ll *ret){
+	static ll a[maxl],b[maxl];
+	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
+	ntt(a,s,1); ntt(b,s,1);
+	for (int i=0;i<s;i++) a[i]*=b[i];
+	ntt(a,s,-1);
+	memcpy(ret,a,sizeof(ll)*s);
+}
 int ans[maxl],_;
 char s1[100010],s2[100010];
 //fast mul
 void mul(){
+	static cd a[maxl],b[maxl];
 	scanf("%s%s",s1,s2);
 	int l1=strlen(s1),l2=strlen(s2);
 	int s=2,bit=1;
@@ -597,7 +667,7 @@ void mul(){
 	conv(a,b,s,a);
 	for (int i=0;i<s;i++) cout<<a[i]<<' '; cout<<'\n';
 	for (int i=0;i<s;i++){
-		ans[i]+=a[i];
+		ans[i]+=a[i].real();
 		ans[i+1]+=ans[i]/10;
 		ans[i]%=10;
 	}
@@ -611,6 +681,7 @@ ll P1=1004535809,P2=998244353,P3=469762049;
 ll res[3][maxl];
 //conv a sequence with mod p, while p<P1*P2*P3
 void conv_mod(){
+	static ll a[maxl],b[maxl];
 	int l1,l2; ll p;
     rd(l1); rd(l2); l1++; l2++;
     int s=2,bit=1;
@@ -689,23 +760,6 @@ int S(){
 #undef CS
 }
 
-namespace UFSet{
-const int maxn=100010;
-int fa[maxn];
-void clear(){
-	for (int i=0;i<maxn;i++) fa[i]=i;
-}
-int fi(int x){
-	if (fa[x]!=x)
-		fa[x]=fi(fa[x]);
-	return fa[x];
-}
-void un(int a, int b){
-	int ta=fi(a),tb=fi(b);
-	if (ta!=tb) fa[ta]=tb;
-}
-}
-
 namespace TreeArr{
 #define lowbit(x) (x&(-x))
 const int maxn=100010;
@@ -727,20 +781,20 @@ void add(ll a, int x){
 }
 
 namespace BipartiteGraph{
-int vis[maxn]; //memset to 0 when start
-//judge if a map is BipartiteGraph
-bool judge(int u, int col){
-	vis[u]=col;
-	for (int i=0;i<n;i++)
-		if (d[u][i] && (vis[i] && vis[i]!=-col || !vis[i] && !judge(i,-col))
-			return 0;
-	return 1;
-}
 
 const int maxn=500;
 //to: m->n
 int d[maxn][maxn],to[maxn],n,m;
 bool vis[maxn];
+
+//judge whether a graph is BipartiteGraph
+bool judge(int u, int col){
+	vis[u]=col;
+	for (int i=0;i<n;i++)
+		if (d[u][i] && (vis[i] && vis[i]!=-col || !vis[i] && !judge(i,-col)))
+			return 0;
+	return 1;
+}
 
 bool xiong(int u){
 	for (int i=0;i<m;i++)
@@ -759,7 +813,7 @@ int match(){
 	memset(to,-1,sizeof(to));
 	for (int i=0;i<n;i++){
 		memset(vis,0,sizeof(vis));
-		if (Xiong(i)) ans++;
+		if (xiong(i)) ans++;
 	}
 	return ans;
 }
@@ -779,7 +833,7 @@ void build(int u, int l, int r){
 		return;
 	}
 	int mid=l+r>>1;
-	bulid(lc,l,mid); build(rc,mid,r);
+	build(lc,l,mid); build(rc,mid,r);
 	sum[u]=(sum[lc]+sum[rc])%p;
 }
 void upd(int u, int l, int r){
@@ -845,7 +899,6 @@ void added(int a, int b, int cap){
 	ed[++ecnt]=(Edge){a,head[b],0,0,0};
 	head[b]=ecnt;
 }
-queue<int> qu;
 int s,t,a[maxn],fr[maxn],fp[maxn];
 bool vis[maxn];
 //deleted O(n^5)
@@ -855,7 +908,7 @@ int MF_FF(){
 		memset(vis,0,sizeof(vis));
 		memset(a,0,sizeof(a));
 		a[s]=INF;
-		while (qu.size()) qu.pop();
+		queue<int> qu;
 		qu.push(s);
 		vis[s]=1;
 		while (qu.size()){
@@ -940,9 +993,10 @@ int MF_Dinic(){
 	while (1){
 		memset(vis,0,sizeof(vis));
 		memset(a,0,sizeof(a)); //a: level
-		qu.clear(); qu.push(s); vis[s]=1;
+		queue<int> qu; qu.push(s); 
+		vis[s]=1;
 		while (qu.size()){ //BFS
-			int u=qu.fornt(); qu.pop();
+			int u=qu.front(); qu.pop();
 			if (u==t) break;
 			for (int i=head[u];i;i=ed[i].nxt){
 				int v=ed[i].to;
@@ -962,13 +1016,13 @@ int MF_Dinic(){
 }
 
 int dis[maxn];
-
+//!-- untested
 int MCMF(){
 	int ans=0;
 	while (1){
-		memeset(vis,0,sizeof(vis));
-		memeset(dis,0x3f,sizeof(dis));
-		qu.clear(); qu.push(s);
+		memset(vis,0,sizeof(vis));
+		memset(dis,0x3f,sizeof(dis));
+		queue<int> qu; qu.push(s);
 		dis[s]=0; vis[s]=1;
 		while (qu.size()){ //spfa
 			int u=qu.front(); qu.pop(); vis[u]=0;
@@ -1049,17 +1103,18 @@ int cnt(Node *u, char *s){
 	if (!u->tr[*s-'a']) return 0;
 	return cnt(u->tr[*s-'a'],s+1);
 }
-using ATTR;
-int t[maxn],r[maxn]; //t:temp, r:rank
+
+int t[maxn],r[maxn], s0l; //t:temp, r:rank
 //init |right(s)| before cnt
 void initnum(){
 	inc(i,nodec) t[nodes[i].l]++;
-	fo(i,1,s0l+1) t[i]+=t[i-1];
+	rep(i,1,s0l+1) t[i]+=t[i-1];
 	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
-	forr(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
+	per(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
 }
 int lcs(char *x1){
 	int lcs=0, ans=0, xl=strlen(x1);
+	Node *p=root;
 	inc(i,xl){
 		int x=x1[i]-'a';
 		if (p->tr[x]){
@@ -1082,7 +1137,7 @@ int lcs(char *x1){
 
 namespace Manacher{
 const int maxn=10000000;
-int p[maxn<<1],s[maxn<<1],s0[maxn];
+int p[maxn<<1];char s[maxn<<1],s0[maxn];
 int sl,s0l;
 int manacher(){
     s0l=strlen(s0);
@@ -1090,7 +1145,7 @@ int manacher(){
     inc(i,s0l) s[++sl]=s0[i],s[++sl]='#';
     s[++sl]=0;
     int mx=0,mi=0,ans=0;
-    fo(i,1,sl){
+    rep(i,1,sl){
         p[i]=i<mx?min(p[mi*2-i], mx-i):1;
         while (s[i-p[i]]==s[i+p[i]]) p[i]++;
         if (mx<i+p[i]) mi=i,mx=i+p[i];
@@ -1099,6 +1154,30 @@ int manacher(){
     return ans;
 }
 }
+
+namespace Heap{
+//Alorithm heap
+//Run Fast
+const int maxn=1000001;
+int heap[maxn+1],hc;
+int demo(){
+    int n; rd(n);
+    for (int i=0;i<n;i++){
+        int c; rd(c);
+        if (c==1){     //insert
+            int x; rd(x);
+            heap[hc++]=-x;
+            push_heap(heap,heap+hc);
+        }
+        else if (c==2) //min element
+            printf("%d\n",-heap[0]);
+        else           //delete
+            pop_heap(heap,heap+hc),hc--;
+    }
+    return 0;
+}
+}
+
 namespace Treap{
 //TT: an ordered struct
 typedef int TT;
@@ -1495,6 +1574,8 @@ int main(){ //reverse
 	dfs(root); putchar('\n');
 	return 0;
 }
+#undef lc
+#undef rc
 }
 namespace ST{
 const int maxn=100010;
@@ -1517,16 +1598,18 @@ int run(){
 
 namespace LinAlg{
 const int maxn=1010,maxm=1010;
-double a[maxn][maxm],b[maxn][maxn],ans[maxn],n,m;
+double a[maxn][maxm],b[maxn][maxn],ans[maxn];
+int n,m;
+const int eps=1e-7;
 //require m=n+1
-void gauss_solve(){
+bool gauss_solve(){
 	for (int i=0;i<n;i++){
 		int maxl=i;
 		for (int j=i+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
 		if (maxl!=i) swap(a[i],a[maxl]);
 		double r=a[i][i];
-		if (fabs(r)<eps) return 0; //No trivil
+		if (fabs(r)<eps) return 0; //no solution or infinity solution 
 		for (int j=i+1;j<n;j++){
 			r=a[j][i]/a[i][i];
 			for (int k=i;k<m;k++)
@@ -1586,7 +1669,7 @@ int matrank(){
 		int maxl=i;
 		for (int j=l+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
+		if (i!=maxl) swap(a[i],a[maxl]);
 		double r=a[l][i];
 		if (fabs(r)<eps) continue;
 		for (int j=l+1;j<n;j++){
@@ -1603,7 +1686,7 @@ ll p=19260817;
 //used by Matrix-Tree theorem
 //M-T theo: a[i][i]=-deg i, a[i][j]=cnt(i->j), n=|u|-1
 //!--
-ll detint_abs(){
+ll detint_abs(ll **a){
 	ll ans=1;
 	for (int i=0;i<n;i++){
 		int maxl=i;
@@ -1638,7 +1721,7 @@ void added(int x, int y){
 }
 bool vis[maxn];
 //online query, sum, minimax
-namespace multiply{
+namespace TreeMultiply{
 int dep[maxn];
 int pa[24][maxn];
 //minn[24][maxn], sumv[24][maxn];
@@ -1709,7 +1792,6 @@ void process(){
 		rd(a); rd(b);
 		printf("%d\n",lca(a,b));
 	}
-	return 0;
 }
 }
 //offline lca
@@ -1914,7 +1996,7 @@ bool test(ll x){
 ll maxc(){
 	ll ans=0;
 	for (int i=63;i>=0;i--)
-		if ((ans^base[j])>ans)
+		if ((ans^base[i])>ans)
 			ans^=base[i];
 	return ans;
 }
@@ -1923,7 +2005,7 @@ ll minc(){for (int i=0;i<64;i++) if (base[i]) return base[i];}
 //query kth max number
 //k should not larger than 2^(dim linspan(x))
 ll kth(ll k){
-	ll ans=0,tmp[64],res=0,cnt=0;
+	ll ans=0,tmp[64],cnt=0;
     for(T i=0;i<64;i++){ //set matrix to simplest form
         for(int j=i-1;j>=0;j--)
 			if(base[i]&1ull<<j) base[i]^=base[j];
@@ -1931,7 +2013,7 @@ ll kth(ll k){
     }
 	for (int i=63;i>=0;i--)
 		if (k&1ull<<i)
-			ans^=base[i];
+			ans^=tmp[i];
 	return ans;
 }
 }

@@ -1,0 +1,147 @@
+AC_Module
+mod.cpp
+
+USE_ATTR
+
+fast_read:
+  rc //getchar
+  rd //read int, char
+  
+qrand //my rand function
+
+#math
+gcd
+qmul  //O(1) long long mul mod
+qpow
+qpow(mod)
+
+Mat //Matrix, with mul
+qpow(Mat)
+
+
+gen //get phi[i], prime[i]
+inv //inv use qpow
+
+exgcd //ax+by=gcd(a,b)
+inv(exgcd)
+
+china //CRT
+china1 //CRT1
+BSGS //a^x=b(mod p)
+
+witness,MillerRabin
+
+pol_rho
+splitprime //use pol_rho
+
+struct Q  //frac
+
+namespace LUCAS //combain mod p
+
+namespace Numerical
+  fargmax //three division, get argmax
+  
+  simpson, asr, intergrate //get numeric intergrate
+
+namespace Graph
+  added
+  
+  spfa
+  spfa_dfsjudge //!-- deleted
+  
+  dijk
+  floyd
+  floyd_minc
+  
+  tarjan, tarjan_Caller
+  tarjan_point
+  tarjan_ed
+
+  circle_dp //get max sum value on the road 
+
+  kruskal
+  prim
+
+namespace FFT
+  __get_rev
+  fft
+  ntt
+  conv
+  mul
+  conv_mod
+
+namespace Expr
+  ...
+  //calc expr
+
+namespace UFSet //...
+
+namespace TreeArr //...
+
+namespace BitGraph
+  judge
+  __xiong
+  match
+
+namespace segt
+
+namespace netflow
+
+namespace SAM
+  build
+  pos
+  cnt
+  __initnum
+  lcs
+
+namespace Manacher //...
+
+namespace Heap //...
+
+namespace Treap
+  __open
+  __upd
+  __rot
+  ins
+  delx
+  rk   //rank x
+  findx
+  findr  //find by rank
+  pred
+  succ
+  dfs_debug
+
+namespace Splay
+
+namespace NRTreap
+
+namespace STTable
+
+namespace LinAlg
+  gauss_solve
+  matinv
+  det
+  matrank
+  detint_abs //for mat_tree theorem
+
+namespace LCA
+  lca      
+  dfs_deep //init
+  bfs_deep //alter of dfs_deep
+  process  //n log n online lca main procedure
+
+  __addqu
+  tarjan
+  process
+
+namespace SplitTree
+  (same as segt)
+  askt(x,y) //line x,y ask
+  addt(x,y) //line x,y add
+  process
+
+namespace XorBase 
+  //aka linear base
+
+
+  

@@ -1,2 +1,5 @@
-
-*.exe
+*.*
+!categroy.txt
+!mod.cpp
+!.gitignore
+!.gitattributes
