@@ -1,5 +1,5 @@
-*.*
-!categroy.txt
-!mod.cpp
-!.gitignore
-!.gitattributes
+/*
+!/categroy.txt
+!/mod.cpp
+!/.gitignore
+!/.gitattributes
