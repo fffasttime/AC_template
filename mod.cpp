@@ -157,8 +157,9 @@ ll china(int n, ll a[], ll p[]){
 	ll M=1,x=0;
 	for (int i=0;i<n;i++) M*=p[i];
 	for (int i=0;i<n;i++)	{
-		ll w=M/p[i]; //x=pi*k1+a + w*k2
-		x=(x+w*inv(p[i],w)%M*a[i])%M; //get k1, pi*k1=a (Mod w)
+		ll w=M/p[i],d,y; //x=pi*k1+a + w*k2
+		exgcd(p[i],w,d,y);
+		x=(x+w*y*a[i])%M; //get k1, pi*k1=a (Mod w)
 	}
 	return (x+M)%M;
 }
@@ -298,6 +299,8 @@ double fargmax(double l, double r){
 	}
 	return r;
 }
+
+//---simpson_intergrate---
 double simpson(double l,double r){
 	return (r-l)*(f(l)+4*f((l+r)/2)+f(r))/6;	
 }
@@ -310,6 +313,44 @@ double asr(double l, double r, double ans){
 //use simpson method
 //warning: avoid odd point
 double intergrate(double l, double r){return asr(l,r,simpson(l,r));}
+
+//---SA----
+const int maxn=10010;
+struct Point{
+	double x,y;
+}a[maxn];
+//Energy function demo
+double w[maxn]; int n; 
+double E(Point p){
+	double ans=0;
+	inc(i,n)
+		ans+=sqrt((p.x-a[i].x)*(p.x-a[i].x)+(p.y-a[i].y)*(p.y-a[i].y)) * w[i];
+	return ans;
+}
+/*
+argmin_SimulateAnneal(): get argmin E(x), while E is not a convex function.
+To speed up, the energy function should be nearly smooth and partial convex.
+Point: n-d vector, the dimension cannot be too large.
+t0:start temprature
+tend: end temprature
+delta: temprature reduce factor
+*/
+double rand01() {return (rand()+0.5)/RAND_MAX;}
+Point ans; double anse=1e12;
+void argmin_SimulateAnneal(double t0=5000, double tend=1e-6, double delta=0.99){
+	double t=t0, ne=1e12; //current state energy
+	Point p((Point){0,0});
+	while (t>=tend){
+		Point p1((Point){p.x+(rand01()*t-t/2), p.y+(rand01()*t-t/2)});
+		double te=E(p1);
+		//cout<<te-ne<<' '<<ne<<' '<<t<<' '<<exp((ne-te)/t)<<' '<<ans.x<<'\n';
+		if (te<ne || 0 && exp((ne-te)/t)>rand01()) //disabled jumpout
+			p=p1, ne=te; //update
+		if (ne<anse)
+			ans=p, anse=ne;//cout<<ans.x<<' '<<ans.y<<' '<<anse<<'\n';
+		t*=delta;
+	}
+}
 }
 
 namespace UFSet{
@@ -393,7 +434,7 @@ void dijk(int s){
 	memset(dis,0x3f,sizeof(dis));
 	memset(vis,0,sizeof(vis));
 	dis[s]=0;
-	priority_queue<pair<int,int>> qu;
+	priority_queue<pair<int,int> > qu;
 	qu.push(make_pair(0,s));
 	while (qu.size()){
 		int u=qu.top().second, mc=-qu.top().first;
@@ -2069,7 +2110,7 @@ struct vec{
 	vec rotate(db rad) const{
 		return vec(x*cos(rad)-y*sin(rad), x*sin(rad)+y*cos(rad));
 	}
-	vec vert() const{ //µ¥Î»·¨Ïò
+	vec vert() const{ //ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½
 		db L=(*this).len();
 		return vec(-y/L,x/L);
 	}
@@ -2291,12 +2332,12 @@ int convex(point *p, int n, point *ans){
 	sort(p,p+n);
 	int m=0;
 	for (int i=0;i<n;i++){
-		while (m>1 && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<0) m--;
+		while (m>1 && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<=0) m--;
 		ans[m++]=p[i];
 	}
 	int k=m;
 	for (int i=n-2;i>=0;i--){
-		while (m>k && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<0) m--;
+		while (m>k && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<=0) m--;
 		ans[m++]=p[i];
 	}
 	if (n>1) m--;
@@ -2319,6 +2360,9 @@ bool onleft(Line &l, point p){
 const int maxp=1001;
 Line Q[maxp<<1]; //deque
 point T[maxp<<1]; //temp ans
+//The result area can't be unlimited.
+//You can add 'inf' edges to make sure that. Then
+//if a result point is 'inf' then the real result is unlimited.
 int halfplaneInt(Line *l, int n, point *ans){
 	for (int i=0;i<n;i++) l[i].ang=l[i].v.angle();
 	sort(l,l+n);
@@ -2335,9 +2379,9 @@ int halfplaneInt(Line *l, int n, point *ans){
 		if (head<tail) 
 			T[tail-1]=lineCross(Q[tail-1].p,Q[tail-1].v,Q[tail].p,Q[tail].v);		
 	}
-	while (head<tail && !onleft(Q[head],T[tail])) tail--;
-	if (head>=tail-1) return 0;
-	T[tail]=lineCross(Q[head].p,Q[head].v,Q[tail].p,Q[tail].v);
+	while (head<tail && !onleft(Q[head],T[tail])) tail--; 
+	if (head>=tail-1) return 0;  //m<3, no available area
+	T[tail]=lineCross(Q[head].p,Q[head].v,Q[tail].p,Q[tail].v); //head cross tail
 	int m=0;
 	for (int i=head;i<=tail;i++) ans[m++]=T[i];
 	return m;
@@ -2402,6 +2446,30 @@ circle mincirCover(point *p, int n){
                 }
         }
     return c;
+}
+
+double polyDiam(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p);
+	p[n]=p[0];
+	int opp=1; db ans=dis(p[0],p[1]);
+	for (int i=0;i<n;i++){
+		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=max(ans, max(dis(p[opp],p[i]),dis(p[opp],p[i+1])));
+	}
+	return ans;
+}
+//+?
+db polyWidth(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p);
+	p[n]=p[0];
+	int opp=1; db ans=1e10;
+	for (int i=0;i<n;i++){
+		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=min(ans, lineDis(p[opp],p[i],p[i+1]));
+	}
+	return ans;
 }
 
 void test(){
@@ -2518,6 +2586,181 @@ void test(){
 	cout<<mincirCover(polyt,4).r<<" expect "<<circle(poly[0],poly[1],poly[3]).r<<'\n';
 	
 	cout<<poly_cirArea(poly, 4, {{0,0},1})<<" expect ???\n";
+}
+
+point tp[200010],use[200010];
+db cdq(point *p,int l, int r){
+	if (l==r-1) return 1e12;
+	if (l==r-2) {
+		if (p[l].y>p[l+1].y) swap(p[l],p[l+1]);
+		return dis(p[l],p[l+1]);
+	}
+	int mid=l+r+1>>1;
+	int uc=0; Point pmid=p[mid];
+	db d=min(cdq(p,l,mid),cdq(p,mid,r));
+	for (int cl=l,cr=mid,cc=l;cc<r;cc++){
+		if (cr>=r || cl<mid && p[cl].y<=p[cr].y)
+			tp[cc]=p[cl++];
+		else
+			tp[cc]=p[cr++];
+		if (fabs(tp[cc].x-pmid.x)<=d+eps)
+			use[uc++]=tp[cc];
+	}
+	inc(i,uc)
+		rep(j,i+1,uc){
+			if (use[j].y>use[i].y+d+eps) break;
+			d=min(dis(use[i],use[j]),d);
+		}
+	rep(i,l,r) p[i]=tp[i];
+	return d;
+}
+db minDisPoint(point *p, int n){
+	sort(p,p+n);
+	return cdq(p,0,n);
+}
+}
+
+namespace DLX{
+const int maxl=10000;
+//row,col: the original pos   H:row head  S:col size
+int L[maxl],R[maxl],U[maxl],D[maxl],H[maxl],S[maxl],col[maxl],row[maxl],ans[maxl];
+int siz,m;
+void pre(){
+	for (int i=0;i<=m;i++){
+		L[i]=i-1; R[i]=i+1;
+		col[i]=i;
+		U[i]=D[i]=i;
+		row[i]=-1;
+	}
+	R[m]=0; L[0]=m;
+	siz=m+1;
+	memset(H,0,sizeof(H));
+	memset(S,0,sizeof(S));
+	S[0]=maxl+1;
+}
+//!-- insert by row order first, col order second
+//!-- the start coord is (1,1), not (0,0)
+void insert(int r, int c){
+	U[siz]=U[c];
+	D[siz]=c;
+	U[D[siz]]=D[U[siz]]=siz;
+	if (H[r]){
+		L[siz]=L[H[r]];
+		R[siz]=H[r];
+		L[R[siz]]=R[L[siz]]=siz;
+	}
+	else H[r]=L[siz]=R[siz]=siz;
+	row[siz]=r; col[siz]=c;
+	S[c]++;
+	siz++;
+}
+//remove a col affected rows
+void del(int c){
+	L[R[c]]=L[c];
+	R[L[c]]=R[c];
+	for (int i=D[c];i!=c;i=D[i])
+		for (int j=R[i];j!=i;j=R[j]){
+			U[D[j]]=U[j];
+			D[U[j]]=D[j];
+			S[col[j]]--;
+		}
+}
+void back(int c){
+	for (int i=D[c];i!=c;i=D[i])
+		for (int j=R[i];j!=i;j=R[j]){
+			U[D[j]]=D[U[j]]=j;
+			S[col[j]]++;
+		}
+	R[L[c]]=L[R[c]]=c;
+}
+//ans[k]: selected row;  H[ans[k]]: selected line head
+bool dfs(int k){
+	if (R[0]==0) 
+		return 1;
+	int mins=1e8, c=0;
+	for (int t=R[0];t;t=R[t])
+		if (S[t]<mins)
+			mins=S[t],c=t;
+	if (!c) return 0;
+	del(c);
+	for (int i=D[c];i!=c;i=D[i]){
+		ans[k]=row[i];
+		for (int j=R[i];j!=i;j=R[j]) del(col[j]);
+		if (dfs(k+1)) return 1;
+		for (int j=L[i];j!=i;j=L[j]) back(col[j]);
+	}
+	back(c);
+	return 0;
+}
+//9x9 sudoku solver
+//first 81: a pos is filled; next 81: a row filled 1~9; next 81: col filled; last 81:square filled
+int out[9][9];
+void solve(int a[9][9]){
+	m=324;
+	pre();
+	int n=1;
+	for (int i=0;i<9;i++)
+		for (int j=0;j<9;j++)
+			if (a[i][j]){
+				insert(n,i*9+j+1); 
+				insert(n,81+i*9+a[i][j]); 
+				insert(n,162+j*9+a[i][j]); 
+				insert(n,243+(i/3*3+j/3)*9+a[i][j]); 
+				n++;
+			}
+			else{
+				for (int k=1;k<=9;k++){
+					insert(n,i*9+j+1); 
+					insert(n,81+i*9+k); 
+					insert(n,162+j*9+k); 
+					insert(n,243+(i/3*3+j/3)*9+k); 
+					n++;
+				}
+			}
+	dfs(0);
+	for (int i=0;i<81;i++){
+		int p=col[H[ans[i]]]-1, x=(col[R[H[ans[i]]]]-1)%9+1;
+		out[p/9][p%9]=x;
+	}
+	for (int i=0;i<9;i++,cout<<'\n')
+		for (int j=0;j<9;j++)
+			cout<<out[i][j]<<' ';
+}
+
+int n0,sum;
+void dfs_nqueen(int k){
+	if (R[0]>n0){ //slashs don't require filled 
+		sum++;
+		return;
+	}
+	int mins=1e8, c=0;
+	for (int t=R[0];t<=n0*2;t=R[t])
+		if (S[t]<mins)
+			mins=S[t],c=t;
+	if (!c) return;
+	del(c);
+	for (int i=D[c];i!=c;i=D[i]){
+		for (int j=R[i];j!=i;j=R[j]) del(col[j]);
+		dfs_nqueen(k+1);
+		for (int j=L[i];j!=i;j=L[j]) back(col[j]);
+	}
+	back(c);
+}
+//only for demo, this algo is not faster than brute force
+//bit aglo is fastest 
+void nqueens(int n){
+	int l=1; n0=n; m=n*6-2; sum=0;
+	pre();
+	for (int i=0;i<n;i++)
+		for (int j=0;j<n;j++){
+			insert(l,i+1);
+			insert(l,n+j+1);
+			insert(l,n*2+i+j+1);
+			insert(l,n*5+i-j-1);
+			l++;
+		}
+	dfs_nqueen(0);
+	cout<<sum<<'\n';
 }
 }
 
