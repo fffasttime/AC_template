@@ -143,5 +143,7 @@ namespace SplitTree
 namespace XorBase 
   //aka linear base
 
-
+namespace DLX
+  sudoku_solver
+  n_queens_demo
   

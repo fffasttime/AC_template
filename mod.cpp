@@ -632,6 +632,7 @@ void euler(int u){
 #endif
 }
 
+namespace Polynomial{
 namespace FFT
 {
 typedef complex<double> cd;
@@ -746,6 +747,27 @@ void conv_mod(){
 }
 }
 
+const int maxn=2010;
+ll x[maxn],y[maxn];
+int n;
+//O(n^2) get single point value
+//if xi between 1~n, we can optimize it to O(n)
+//if xi not in 1~n, we can still preprocess PIj (ki-x[j]+p)%p, 
+//  then get multi point value in O(max(n^2,nm))
+ll LangrangeInter(ll k, ll p){
+    ll sum=0;
+    for (int i=0;i<n;i++){
+        ll s0=1;
+        for (int j=0;j<n;j++)
+            if (i!=j) s0=s0*(x[i]-x[j]+p)%p;
+        s0=qpow(s0,p-2,p);
+        for (int j=0;j<n;j++)
+            if (i!=j) s0=s0*(k-x[j]+p)%p;
+        sum=(sum+y[i]*s0)%p;
+    }
+	return sum;
+}
+}
 namespace Expr{
 //Easy experission, calc +-*/^()
 #define CP cin.peek()
@@ -819,6 +841,21 @@ void add(ll a, int x){
 		x+=lowbit(x);
 	}
 }
+
+//section add and section sum version 
+template <typename X>    
+struct tree_array{    
+    struct tree_array_single{    
+        X arr[MAXN];    
+        void add(int x,X n){while(x<=N)arr[x]+=n,x+=lowbit(x);}    
+        X sum(int x){X sum=0;while(x)sum+=arr[x],x-=lowbit(x);return sum;}    
+    }T1,T2;    
+    void add(int x,X n){T1.add(x,n);T2.add(x,x*n);}      
+    X sum(int x){return (x+1)*T1.sum(x)-T2.sum(x);}
+public:
+    void update(int L,int R,int n){add(L,n);add(R+1,-n);}  
+    X query(int L,int R){return sum(R)-sum(L-1);}    
+};
 }
 
 namespace BipartiteGraph{
@@ -1094,6 +1131,72 @@ int MCMF(){
 #undef INF
 }
 
+namespace StringHash{
+//double module hash
+typedef unsigned long long ll;
+const ll m1=1000000007;
+const int maxn=1000010;
+ll h1[maxn],h2[maxn],b1[maxn],b2[maxn];
+void pre(){
+	b1[0]=b2[0]=1;
+	inc(i,maxn-1)
+		b1[i+1]=b1[i]*131%m1,
+		b2[i+1]=b2[i]*137;
+}
+void gethash(char *s, int l){
+	h1[l]=h2[l]=0;
+	dec(i,l){
+		h1[i]=(h1[i+1]*131+s[i])%m1;
+		h2[i]=h2[i+1]*137+s[i];
+		//cout<<h1[i]<<' '<<b1[i]<<'\n';
+	}
+}
+//get substring [l,r) hash value
+pair<ll,ll> substr(int l, int r){
+	ll r1=h1[l]+m1-h1[r]*b1[r-l]%m1; if (r1>=m1) r1-=m1;
+	ll r2=h2[l]-h2[r]*b2[r-l];
+	return {r1,r2};
+}
+}
+
+namespace KMP{
+const int maxn=1000010;
+
+int kmp[maxn];
+//s is a short partten string
+char s[maxn]; int sl; 
+void getkmp(){
+	int j=0,k=-1;
+	kmp[0]=-1;
+	while (j<sl)
+		if (k==-1 || s[j]==s[k])
+			kmp[++j]=++k;
+		else
+			k=kmp[k];
+}
+int kmp_idx(char *t, int tl){
+	int i=0, j=0;
+	while (i<sl && j<tl)
+		if (i==-1 || s[i]==t[j])
+			i++,j++;
+		else
+			i=kmp[i];
+	if (i==sl) return j-sl;
+	else return -1;
+}
+int kmp_cnt(char *t, int tl){
+	int i=0, j=0, cnt=0;
+	while (j<tl){
+		if (i==-1 || s[i]==t[j])
+			i++,j++;
+		else
+			i=kmp[i];
+		if (i==sl) cnt++;
+	}
+	return cnt;
+}
+}
+
 namespace SAM{
 const int maxn=100010,alpha=26;
 
@@ -1138,7 +1241,7 @@ int pos(Node *u, char *s){
 	if (!u->tr[*s-'a']) return -1;
 	return pos(u->tr[*s-'a'],s+1);
 }
-//get count substr
+//count substr
 int cnt(Node *u, char *s){
 	if (*s==0) return u->num;
 	if (!u->tr[*s-'a']) return 0;
