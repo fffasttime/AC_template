@@ -11,8 +11,11 @@ using namespace std;
 #define inc(i,n) for (int i=0;i<n;i++)
 #define icc(i,n) for (int i=1;i<=n;i++)
 #define dec(i,n) for (int i=n-1;i>=0;i--)
+#define dcc(i,n) for (int i=n;i>0;i--)
 #define rep(i,a,b) for (int i=a;i<b;i++)
+#define rpp(i,a,b) for (int i=a;i<=b;i++)
 #define per(i,b,a) for (int i=b-1;i>=a;i--)
+#define prr(i,b,a) for (int i=b;i>=a;i--)
 
 #define MS(a,x) memset(a,x,sizeof(a))
 //we can use initiallist in c++1x
@@ -448,7 +451,23 @@ void dijk(int s){
 			}
 	}
 }
-int d[maxn][maxn],mp[maxn][maxn];
+int mp[maxn][maxn];
+void dijk_original(int s){
+	memset(dis,0x3f,sizeof(dis));
+	memset(vis,0,sizeof(vis));
+	dis[s]=0;
+	for(int i=0;i<n;i++){
+		int u=0,md=0x3f3f3f3f;
+		for (int j=0;j<n;j++)
+			if (!vis[j] && dis[j]<md)
+				md=dis[j], u=j;
+		vis[u]=1;
+		for (int j=0;j<n;j++)
+			if (!vis[j])
+				dis[j]=min(dis[j],md+mp[u][j]);
+	}
+}
+int d[maxn][maxn];
 void floyd(){
 	for (int k=0;k<n;k++)
 		for (int i=0;i<n;i++)
@@ -611,6 +630,23 @@ int prim(){
 				dis[to[e]]=co[e];
 				qu.push(make_pair(-co[e],to[e]));
 			}
+	}
+	return ans;
+}
+//O(n^2)
+int prim_original(){
+	memset(dis,0x3f,sizeof(dis));
+	memset(vis,0,sizeof(vis));
+	dis[1]=0; int ans=0;
+	for(int i=0;i<n;i++){
+		int u=0,md=0x3f3f3f3f;
+		for (int j=0;j<n;j++)
+			if (!vis[j] && dis[j]<md)
+				md=dis[j], u=j;
+		vis[u]=1; ans+=md;
+		for (int j=0;j<n;j++)
+			if (!vis[j])
+				dis[j]=min(dis[j],mp[u][j]);
 	}
 	return ans;
 }
@@ -827,26 +863,20 @@ namespace TreeArr{
 #define lowbit(x) (x&(-x))
 const int maxn=100010;
 ll tr[maxn]; int n;
+void add(ll a, int x){
+	while (x<=n) tr[x]+=a, x+=lowbit(x);
+}
 ll sum(int x){
 	ll ret=0;
-	while (x){
-		ret+=tr[x];
-		x-=lowbit(x);
-	}
+	while (x) ret+=tr[x], x-=lowbit(x);
 	return ret;
-}
-void add(ll a, int x){
-	while (x<=n){
-		tr[x]+=a;
-		x+=lowbit(x);
-	}
 }
 
 //section add and section sum version 
 template <typename X>    
 struct tree_array{    
     struct tree_array_single{    
-        X arr[MAXN];    
+        X arr[maxn];    
         void add(int x,X n){while(x<=N)arr[x]+=n,x+=lowbit(x);}    
         X sum(int x){X sum=0;while(x)sum+=arr[x],x-=lowbit(x);return sum;}    
     }T1,T2;    
@@ -869,7 +899,7 @@ bool vis[maxn];
 bool judge(int u, int col){
 	vis[u]=col;
 	for (int i=0;i<n;i++)
-		if (d[u][i] && (vis[i] && vis[i]!=-col || !vis[i] && !judge(i,-col)))
+		if (d[u][i] && (vis[i]==col || !vis[i] && !judge(i,-col)))
 			return 0;
 	return 1;
 }
@@ -1013,42 +1043,35 @@ int MF_FF(){
 	return ans;
 }
 int now[maxn],num[maxn];
-int MF_ISAP(){
-	int ans=0,u=s;
-	for (int i=1;i<=n;i++) now[i]=head[i],a[i]=1;
-	a[t]=0; num[0]=1; num[1]=n-1;
-	while (a[s]<n){
-		bool ok=0;
-		if (u==t){
-			int mc=INF;
-			for (int i=t;i!=s;i=fp[i])
-				mc=min(mc,ed[fr[i]].cap-ed[fr[i]].flow);
-			for (int i=t;i!=s;i=fp[i]){
-				ed[fr[i]].flow+=mc;
-				ed[fr[i]^1].flow-=mc;
-			}
-			ans+=mc; u=s;
+int isap_aug(int u, int f){
+	if (u==t) return f;
+	int ans=0;
+	for (int i=now[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
+		if (a[u]==a[v]+1){
+			int w=isap_aug(v,min(f,ed[i].cap-ed[i].flow));
+			ans+=w; f-=w; ed[i].flow+=w; ed[i^1].flow-=w;
+			if (!f) return ans;
+			now[u]=i;
 		}
-		for (int i=now[u];i;i=ed[i].nxt){
-			int v=ed[i].to;
-			if (a[u]==a[v]+1 && ed[i].cap>ed[i].flow){
-				ok=1;
-				fp[v]=u; fr[v]=i;
-				now[u]=i; u=v;
-				break;
-			}
-		}
-		if (!ok){
-			int c=n-1;
-			for (int i=head[u];i;i=ed[i].nxt)
-				if (ed[i].cap>ed[i].flow) c=min(c,a[ed[i].to]);
-			if (--num[a[u]]==0) break; //gap opt
-			num[a[u]=c+1]++;
-			now[u]=head[u];
-			if (u!=s) u=fp[u];
-		}
-	}
+	if (!(--num[a[u]])) a[s]=n+1;
+	++num[++a[u]]; now[u]=head[u];
 	return ans;
+}
+int MF_isap(){
+	memset(num,0,sizeof(num));
+	memset(a,0,sizeof(a));
+	for (int i=1;i<=n;i++) now[i]=head[i];
+	static int qu[maxn];
+	int ql,qr=1; qu[ql=0]=t;
+	++num[a[t]=1];
+	while (ql<qr){
+		int u=qu[ql++];
+		for (int i=head[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
+			if (!a[v]) ++num[a[v]=a[u]+1],qu[++qr]=v;
+	}
+	int ret=isap_aug(s,INF);
+	while (a[s]<=n) ret+=isap_aug(s,INF);
+	return ret;
 }
 
 int dinic_dfs(int u, int f){
@@ -1056,7 +1079,7 @@ int dinic_dfs(int u, int f){
 	if (u==t) return f;
 	for (int i=now[u];i;i=ed[i].nxt){
 		int v=ed[i].to;
-		if (a[v]==a[u]+1 && (w=dinic_dfs(v,min(ed[i].cap-ed[i].flow,f)))>0){
+		if (a[v]==a[u]+1 && ed[i].cap-ed[i].flow && (w=dinic_dfs(v,min(ed[i].cap-ed[i].flow,f)))){
 			ans+=w;
 			ed[i].flow+=w; ed[i^1].flow-=w;
 			f-=w; if (f==0) return ans;
@@ -1066,7 +1089,7 @@ int dinic_dfs(int u, int f){
 	if (!ans) a[u]=-1;
 	return ans;
 }
-int MF_Dinic(){
+int MF_dinic(){
 	int ans=0;
 	while (1){
 		memset(vis,0,sizeof(vis));
@@ -1093,8 +1116,13 @@ int MF_Dinic(){
 	return ans;
 }
 
+void added(int a, int b, int cap, int cost){
+	ed[++ecnt]=(Edge){b,head[a],cap,0,cost};
+	head[a]=ecnt;
+	ed[++ecnt]=(Edge){a,head[b],0,0,-cost};
+	head[b]=ecnt;
+}
 int dis[maxn];
-//!-- untested
 int MCMF(){
 	int ans=0;
 	while (1){
@@ -1197,9 +1225,73 @@ int kmp_cnt(char *t, int tl){
 }
 }
 
+namespace PAM{
+const int maxn=100000,alpha=26; //sigma len(si)
+int ch[maxn][alpha],val[maxn],fail[maxn],lbl[maxn],len[maxn],pc=0;
+int cnt[1000]; //str appear times, first element is 1
+int strc=0;
+void clear(){
+	pc=0; strc=0;
+	memset(ch,0,sizeof(ch));
+	memset(fail,0,sizeof(fail));
+	memset(val,0,sizeof(val));
+	memset(lbl,0,sizeof(lbl));
+}
+//Trie construct
+void ins(char *s){
+	int l=strlen(s), cur=0;
+	for (int i=0;i<l;i++){
+		int v=s[i]-'a';
+		if (!ch[cur][v]) ch[cur][v]=++pc;
+		cur=ch[cur][v];
+		len[cur]=i+1;
+	}
+	strc++;
+	lbl[cur]=strc;
+	val[cur]++;
+}
+int qu[maxn];
+//fail edge add
+void build(){
+	int qh=0,qt=0;
+	for (int i=0;i<alpha;i++)
+		if (ch[0][i]) fail[ch[0][i]]=0,qu[qt++]=ch[0][i];
+	while (qh<qt){
+		int u=qu[qh];qh++;
+		for (int i=0;i<alpha;i++)
+			if (ch[u][i])
+				fail[ch[u][i]]=ch[fail[u]][i],qu[qt++]=ch[u][i];
+			else
+				ch[u][i]=ch[fail[u]][i]; //opt, move to fail auto. Attention: the multi fail jump will be emitted
+	}
+}
+//count how many mode str appeared in s as substr
+int appear(char *s){
+	int l=strlen(s),cur=0,ans=0;
+	for (int i=0;i<l;i++){
+		cur=ch[cur][s[i]-'a'];
+		for (int t=cur;t && ~val[t];t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+			ans+=val[t],val[t]=-1;
+	}
+	return ans;
+}
+//count each mode str in s
+void cntall(char *s){
+	int l=strlen(s),cur=0;
+	memset(cnt,0,sizeof(cnt));
+	for (int i=0;i<l;i++){
+		cur=ch[cur][s[i]-'a'];
+		for (int t=cur;t;t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+			cnt[lbl[t]]++;
+	}
+}
+}
+
 namespace SAM{
 const int maxn=100010,alpha=26;
 
+//max state cnt: 2*strlen-1
+//max transfer cnt: 3*strlen-4
 struct Node{
 	int l,num; bool vis;
 	Node *p, *tr[alpha];
@@ -1212,13 +1304,16 @@ Node *open(int l){
 	nodes[nodec++].set(l);
 	return nodes+nodec-1;
 }
-void build(char *s){
-	nodec=0;
+void build(char *s, int l){
 	Node *cur;
-	int sl=strlen(s);
 	cur=root=open(0);
-	for (int i=0;i<sl;i++){
+	for (int i=0;i<l;i++){
 		int x=s[i]-'a';
+		/* 
+		if (cur->tr.count(x[i])){ //in multi string
+			cur=cur->tr[x];
+			continue;
+		}*/
 		Node *p=cur;
 		cur=open(i+1);
 		for (;p && !p->tr[x];p=p->p)
@@ -1248,7 +1343,7 @@ int cnt(Node *u, char *s){
 	return cnt(u->tr[*s-'a'],s+1);
 }
 
-int t[maxn],r[maxn], s0l; //t:temp, r:rank
+int t[maxn],r[maxn], s0l; //t:temp, r:rank(ith element pos)
 //init |right(s)| before cnt
 void initnum(){
 	inc(i,nodec) t[nodes[i].l]++;
@@ -2720,6 +2815,70 @@ db cdq(point *p,int l, int r){
 db minDisPoint(point *p, int n){
 	sort(p,p+n);
 	return cdq(p,0,n);
+}
+
+namespace scannerLine{
+const int maxn=100010;
+struct Line{
+	double l,r,h; int c;
+	bool operator<(const Line &v) const{
+		return h<v.h;
+	}
+}li[maxn];
+int lic;
+
+#define lc u+u+1
+#define rc u+u+2
+double len[maxn<<2]; int cnt[maxn<<2];
+double x[maxn<<1]; int xc;
+
+void calc(int u, int l, int r){
+	if (cnt[u])
+		len[u]=x[r]-x[l];
+	else if (l==r-1)
+		len[u]=0;
+	else
+		len[u]=len[lc]+len[rc];
+}
+void add(int u, int l, int r, int cl, int cr, int c){
+	if (cl<=l && cr>=r){
+		cnt[u]+=c;
+		calc(u,l,r);
+		return;
+	}
+	int mid=l+r>>1;
+	if (cl<mid) add(lc,l,mid,cl,cr,c);
+	if (cr>mid) add(rc,mid,r,cl,cr,c);
+	calc(u,l,r);
+}
+
+double x0[maxn],y0[maxn],x1[maxn],y1[maxn];
+void rectInt(int n){
+	xc=lic=0;
+	memset(len,0,sizeof(len));
+	memset(cnt,0,sizeof(cnt));
+	for (int i=0;i<n;i++){
+		double x1,y1,x2,y2;
+		scanf("%lf%lf%lf%lf",&x1,&y1,&x2,&y2);
+		x[xc++]=x1; x[xc++]=x2;
+		li[lic++]=(Line){x1,x2,y1,1};
+		li[lic++]=(Line){x1,x2,y2,-1};
+	}
+	sort(li,li+lic);
+	sort(x,x+xc);
+	double ans=0,last=0;
+	for (int i=0;i<lic;i++){
+		int l=lower_bound(x,x+xc,li[i].l)-x;
+		int r=lower_bound(x,x+xc,li[i].r)-x;
+		add(0,0,xc,l,r,li[i].c);
+		ans+=len[0]*(li[i+1].h-li[i].h);
+		//sum of lenth on sx
+		//ans+=fabs(len[0]-last); last=len[0];
+	}
+	printf("%.2f\n",ans);
+}
+#undef lc
+#undef rc
 }
 }
 
