@@ -4,7 +4,16 @@ Author: fffasttime
 Date: 
 Description: 
 */
-#include <bits/stdc++.h>
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <cstring>
+#include <vector>
+#include <set>
+#include <map>
+#include <queue>
+#include <algorithm>
 using namespace std;
 #define USE_ATTR
 #ifdef USE_ATTR
@@ -494,7 +503,7 @@ int floyd_minc(){
 
 vector<int> ed[maxn];
 bool ins[maxn];
-int st[maxn],stn,dfn[maxn],low[maxn],idx,scn;
+int st[maxn],stn,dfn[maxn],low[maxn],from[maxn],idx,scn;
 vector<int> scc[maxn];
 
 void tarjan(int u){
@@ -507,71 +516,32 @@ void tarjan(int u){
 			low[u]=min(low[u],low[ed[u][i]]);
 		}
 		else if (ins[ed[u][i]])
-			low[u]=min(low[u],low[ed[u][i]]);
+			low[u]=min(low[u],low[ed[u][i]]); //either low or dfn are right
 	if (low[u]==dfn[u]){
 		int v;
 		do{
 			v=st[--stn];
 			scc[scn].push_back(v);
+			from[v]=scn;
 			ins[v]=0;
 		}while (u!=v);
 		scn++;
 	}
 }
-void tarjan_Caller(){
-	for (int i=1;i<=n;i++)
-		if (!dfn[i])
-			tarjan(i);
-}
-
-// !-- untested
-bool iscut[maxn];
-void tarjan_point(int u, int fa){
-	int ch=0;
-	low[u]=dfn[u]=++idx;
-	for (int i=0;i<ed[u].size();i++){
-		int v=ed[u][i];
-		if (!dfn[v]){
-			ch++;
-			tarjan_point(v,u);
-			low[u]=min(low[u],low[v]);
-			if (low[v]>=dfn[u]) iscut[u]=1;
-		}
-		else if (dfn[v]<dfn[u] && v!=fa)
-			low[u]=min(low[u],dfn[v]);
-	}
-	if (fa<0 && ch==1) iscut[u]=0;
-}
-int ansx[maxn],ansy[maxn],ansc;
-void tarjan_ed(int u, int fa){
-	low[u]=dfn[u]=++idx;
-	for (int i=0;i<ed[u].size();i++){
-		int v=ed[u][i];
-		if (!dfn[v]){
-			tarjan_ed(v,u);
-			low[u]=min(low[u],low[v]);
-			if (low[v]>dfn[u])
-				ansx[ansc]=u,ansy[ansc++]=v;
-		}
-		else if (dfn[v]<dfn[u] && v!=fa)
-			low[u]=min(low[u],dfn[v]);
-	}
-}
-
-int qu[maxn],a[maxn],from[maxn],ind[maxn],sum[maxn],ans[maxn];
+int qu[maxn],a[maxn],ind[maxn],sum[maxn],ans[maxn];
 vector<int> ed2[maxn];
 
 int circle_dp(){
 	int n,m; scanf("%d%d",&n,&m);
-	for (int i=0;i<n;i++) scanf("%d",a+i+1);
+	for (int i=0;i<n;i++) scanf("%d",a+i);
 	for (int i=0;i<m;i++){
-		int a,b;
+		int a,b; a--; b--;
 		scanf("%d%d",&a,&b);
 		ed[a].push_back(b);
 	}
-	for (int i=1;i<=n;i++)
+	inc(i,n)
 		if (!dfn[i]) tarjan(i);
-	for (int i=1;i<=n;i++)
+	inc(i,n)  //rebuild DAG
 		for (int j=0;j<ed[i].size();j++)
 			if (from[i]!=from[ed[i][j]])
 				ed2[from[i]].push_back(from[ed[i][j]]),
@@ -593,6 +563,62 @@ int circle_dp(){
 	cout<<tans<<'\n';
 	return 0;
 }
+
+//mark dcc cut point
+bool iscut[maxn];
+void tarjan_point(int u, int fa){
+	int ch=0; //sum of subtree link by this point
+	low[u]=dfn[u]=++idx;
+	for (int i=0;i<ed[u].size();i++){
+		int v=ed[u][i];
+		if (!dfn[v]){
+			ch++;
+			tarjan_point(v,u); //we can use siz[u] to record each size of subtree
+			low[u]=min(low[u],low[v]);
+			if (low[v]>=dfn[u]) iscut[u]=1;
+		}
+		else if (v!=fa)
+			low[u]=min(low[u],dfn[v]); //dfn
+	}
+	if (fa<0 && ch==1) iscut[u]=0;
+}
+//dfs dcc block
+int cnt,cucnt,vis[maxn];
+void dfs_dcc(int u, int dcn){
+	vis[u]=dcn; 
+	cnt++;
+	for (int i=0;i<ed[u].size();i++){
+		int v=ed[u][i];
+		if (iscut[v] && vis[v]!=dcn) cucnt++,vis[v]=dcn; 
+		if (!vis[v] && !iscut[i]) dfs_dcc(v, dcn);
+	}
+}
+//cnt: inner point of current dcc block, cucnt: cut point in cur dcc block
+void dcc_caller(){
+	int dcn=0;
+	icc(i,n) if (!vis[i] && !iscut[i]){
+		dcn++; cnt=cucnt=0;
+		dfs_dcc(i, dcn);
+		//cnt, cucnt, ...
+	}
+}
+
+int ansx[maxn],ansy[maxn],ansc;
+void tarjan_ed(int u, int fa){
+	low[u]=dfn[u]=++idx;
+	for (int i=0;i<ed[u].size();i++){
+		int v=ed[u][i];
+		if (!dfn[v]){
+			tarjan_ed(v,u);
+			low[u]=min(low[u],low[v]);
+			if (low[v]>dfn[u])
+				ansx[ansc]=u,ansy[ansc++]=v;
+		}
+		else if (v!=fa)
+			low[u]=min(low[u],dfn[v]);
+	}
+}
+
 #ifdef NO_COMPILE
 int kruskal(){
 	using namespace UFSet;
@@ -1226,7 +1252,7 @@ int kmp_cnt(char *t, int tl){
 }
 
 namespace PAM{
-const int maxn=100000,alpha=26; //sigma len(si)
+const int maxn=100000,alpha=26; //maxn >= sigma len(si)
 int ch[maxn][alpha],val[maxn],fail[maxn],lbl[maxn],len[maxn],pc=0;
 int cnt[1000]; //str appear times, first element is 1
 int strc=0;
@@ -1287,6 +1313,48 @@ void cntall(char *s){
 }
 }
 
+namespace SA{
+//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a', h: height(adj LCP)
+//t1,t2,c: temp array
+int t1[N],t2[N],sa[N],h[N],rk[N],c[N],a[N];
+int n,m;
+void calcsa(){
+	int *x=t1,*y=t2,p=0,f=0;
+	icc(i,m) c[i]=0;        
+	icc(i,n) c[x[i]=a[i]]++;  //first char sort
+	icc(i,m) c[i]+=c[i-1];
+	dcc(i,n) sa[c[x[i]]--]=i; //pos of ith first char
+	for (int i=1;i<=n && p<=n;i<<=1){
+		p=0;
+		rpp(j,n-i+1,n) y[++p]=j;  //remain part
+		icc(j,n) if (sa[j]>i) y[++p]=sa[j]-i; //main part
+		icc(j,m) c[j]=0;
+		icc(j,n) c[x[y[j]]]++;
+		icc(i,m) c[i]+=c[i-1];
+		dcc(j,n) sa[c[x[y[j]]]--]=y[j]; //sort, use dcc because sort should be stable
+		swap(x,y);x[sa[1]]=p=1; 
+		rpp(j,2,n) x[sa[j]]=y[sa[j]]==y[sa[j-1]]&&y[sa[j]+i]==y[sa[j-1]+i]?p:++p; //refill key
+		m=p;
+	}
+	icc(i,n) rk[sa[i]]=i;
+	icc(i,n){
+		int j=sa[rk[i]-1];
+		if (f) f--; while (a[i+f]==a[j+f]) f++;
+		h[rk[i]]=f;
+	}
+}
+
+char s0[N];
+int main(){
+	scanf("%s",s0); int l=strlen(s0);
+	inc(i,l) a[++n]=s0[i]-' ';
+	m=200;
+	calcsa();
+	icc(i,n) printf("%d ",sa[i]);
+	return 0;
+}
+}
+
 namespace SAM{
 const int maxn=100010,alpha=26;
 
@@ -1309,11 +1377,6 @@ void build(char *s, int l){
 	cur=root=open(0);
 	for (int i=0;i<l;i++){
 		int x=s[i]-'a';
-		/* 
-		if (cur->tr.count(x[i])){ //in multi string
-			cur=cur->tr[x];
-			continue;
-		}*/
 		Node *p=cur;
 		cur=open(i+1);
 		for (;p && !p->tr[x];p=p->p)
@@ -1371,6 +1434,107 @@ int lcs(char *x1){
 		ans=max(ans,lcs);
 	}
 	return ans;
+}
+}
+
+//mulit-str SAM
+namespace GSAM{
+struct Node{
+	int l, num, las, vis;
+	Node *p;
+	map<int,Node*> tr; //more time, less memory
+	//int tr[26];
+}nodes[maxn<<1];
+int nodec;
+Node *open(int l){
+	nodes[nodec++].l=l;
+	return nodes+nodec-1;
+}
+Node *root=open(0);
+void build(int *s, int l){
+	Node *cur=root;
+	for (int i=0;i<l;i++){
+		int x=s[i];
+		if (cur->tr.count(x)){  //transfer existed
+			cur=cur->tr[x];
+			continue;
+		}
+		Node *p=cur;
+		cur=open(i+1);
+		for (;p && !p->tr.count(x);p=p->p)
+			p->tr[x]=cur;
+		if (!p) cur->p=root;
+		else{
+			Node *q=p->tr[x];
+			if (p->l+1==q->l) cur->p=q;
+			else{
+				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
+				q->p=r; cur->p=r; r->num=0;
+				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
+			}
+		}
+	}
+}
+int len[200010],tot;
+vector<int> str[200010];
+int ts[200010];
+int ans[200010];
+//calc how many mode str appear in each query
+void upd1(Node *u, int col){ 
+	for (;u->las!=col && u!=root;u=u->p)
+		u->las=col, u->num++;
+}
+//calc ecah mode str appear how many query
+void upd2(Node *u, int col){ 
+	for (;u->las!=col && u!=root;u=u->p)
+		u->las=col,ans[col]+=u->vis;
+}
+//n: mode str, m: query str
+int main(){
+	int n,m; cin>>n>>m;
+	for (int i=0;i<n;i++){
+		++tot;
+		scanf("%d", len+tot);
+		for (int j=0;j<len[tot];j++){
+			scanf("%d",ts+j);
+			str[tot].push_back(ts[j]);
+		}
+		build(ts,len[tot]);
+	}
+	for (int i=1;i<=tot;i++){
+		Node *cur=root;
+		for (int j=0;j<len[i];j++)
+			cur=cur->tr[str[i][j]],
+			upd1(cur,i);
+	}
+	for (int i=0;i<m;i++){
+		int l,x; bool flag=1;
+		scanf("%d",&l);
+		Node *cur=root;
+		for (int j=0;j<l;j++){
+			scanf("%d",&x);
+			if (flag)
+				if (cur->tr.count(x))
+					cur=cur->tr[x];
+				else //no transfer
+					flag=0;
+		}
+		if (flag)
+			printf("%d\n",cur->num),
+			cur->vis++;
+		else
+			printf("0\n");
+	}
+	for (int i=0;i<nodec;i++) nodes[i].las=0; //!-- clear
+	for (int i=1;i<=tot;i++){
+		Node *cur=root;
+		for (int j=0;j<len[i];j++)
+			cur=cur->tr[str[i][j]],
+			upd2(cur,i);
+	}
+	for (int i=1;i<=tot;i++)
+		printf("%d ",ans[i]);
+	return 0;
 }
 }
 
@@ -1531,9 +1695,11 @@ bool rev[maxn];
 int root,trcnt;
 #define lc ch[u][0]
 #define rc ch[u][1]
+//pushup
 void upd(int u){
 	siz[u]=cnt[u]+siz[lc]+siz[rc];
 }
+//lazy tags
 void pushdown(int u){
 	if (rev[u]){
 		rev[lc]^=1;rev[rc]^=1;
@@ -1545,27 +1711,27 @@ void rot(int u, int c){
 	int p=pa[u];
 	ch[p][!c]=ch[u][c];
 	pa[ch[u][c]]=p; pa[u]=pa[p];
-	if (pa[u]) ch[pa[p]][ch[pa[u]][1]==p]=u;
+	if (pa[u]) ch[pa[p]][ch[pa[p]][1]==p]=u;
 	ch[u][c]=p; pa[p]=u;
-	upd(p);
+	upd(p); upd(u);
 }
 //u->under s
 void splay(int u, int s){
-	pushdown(u);
-	while (pa[u]!=s)
-		if (pa[pa[u]]==s) rot(u,ch[pa[u]][0]==u);
+	while (pa[u]!=s){
+		int p=pa[u],pp=pa[p];
+		if (pp==s) rot(u,ch[p][0]==u);
 		else{
-			int p=pa[u],pp=pa[p],c=(ch[pp][0]==p);
-			if (ch[p][c]==u) rot(u,!c),rot(u,c);
-			else rot(p,c),rot(u,c);
+			int c=(ch[pp][0]==p);
+			if (ch[p][c]==u) rot(u,!c); else rot(p,c);
+			rot(u,c);
 		}
-	upd(u);
+	}
 	if (s==0) root=u;
 }
 //rank k->under s
-void rk(int k, int s){
+void rk(int k, int s=0){
 	int u=root;
-	k=max(k,1); k=min(k,siz[root]);
+	assert(k>=1 && k<=siz[root]);
 	while (1){
 		pushdown(u);
 		if (k<=siz[lc]) u=lc;
@@ -1575,7 +1741,7 @@ void rk(int k, int s){
 	splay(u,s);
 }
 //x->under s
-void fi(int x, int s){
+void fi(int x, int s=0){
 	int u=root,p;
 	while (x!=val[u] && u)
 		p=u,u=ch[u][x>val[u]];
@@ -1631,12 +1797,13 @@ int succ(int u, int x){
 	if (x<val[u]) return min(val[u],succ(lc,x));
 	return succ(rc,x);
 }
-void debug(int u, int deep){
+//90 degree rotate debug print
+void debug(int u=root, int deep=0){
 	if (!u) return;
-	debug(lc, deep+1);
+	debug(rc, deep+1);
 	for (int i=0;i<deep;i++) cout<<"  ";
 	cout<<val[u]<<' '<<siz[u]<<'\n';
-	debug(rc, deep+1);
+	debug(lc, deep+1);
 }
 int n,m;
 void dfs(int u){
