@@ -4,6 +4,11 @@ Author: fffasttime
 Date: 
 Description: 
 */
+//#pragma comment(linker, "/stack:200000000")
+//#pragma GCC optimize("Ofast,no-stack-protector")
+//#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,tune=native")
+//#pragma GCC optimize("unroll-loops")
+
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -886,25 +891,19 @@ int S(){
 }
 
 namespace TreeArr{
-#define lowbit(x) (x&(-x))
+
 const int maxn=100010;
-ll tr[maxn]; int n;
-void add(ll a, int x){
-	while (x<=n) tr[x]+=a, x+=lowbit(x);
-}
-ll sum(int x){
-	ll ret=0;
-	while (x) ret+=tr[x], x-=lowbit(x);
-	return ret;
-}
+int tr[maxn]; int n;
+void add(int p, int x){for(;p<=n;p+=p&-p) tr[p]+=x;}
+ll sum(int p){ll ret=0;for(;p;p-=p&-p) ret+=tr[p];return ret;}
 
 //section add and section sum version 
 template <typename X>    
 struct tree_array{    
     struct tree_array_single{    
         X arr[maxn];    
-        void add(int x,X n){while(x<=N)arr[x]+=n,x+=lowbit(x);}    
-        X sum(int x){X sum=0;while(x)sum+=arr[x],x-=lowbit(x);return sum;}    
+        void add(int x,X n){while(x<=N)arr[x]+=n,x+=x&-x;}    
+        X sum(int x){X sum=0;while(x)sum+=arr[x],x-=x&-x;return sum;}    
     }T1,T2;    
     void add(int x,X n){T1.add(x,n);T2.add(x,x*n);}      
     X sum(int x){return (x+1)*T1.sum(x)-T2.sum(x);}
@@ -917,7 +916,8 @@ public:
 namespace BipartiteGraph{
 
 const int maxn=500;
-//to: m->n
+//Info: d[][] 2-d array is O(n^3), forward star is O(ne). 
+//d[][]: n->m edge  ;  to[]: set m->n match index
 int d[maxn][maxn],to[maxn],n,m;
 bool vis[maxn];
 
@@ -930,6 +930,7 @@ bool judge(int u, int col){
 	return 1;
 }
 
+//index between 0..n-1, so must set to[] -1 before
 bool xiong(int u){
 	for (int i=0;i<m;i++)
 		if (d[u][i] && !vis[i]){
@@ -941,7 +942,6 @@ bool xiong(int u){
 		}
 	return 0;
 }
-
 int match(){
 	int ans=0;
 	memset(to,-1,sizeof(to));
@@ -1013,6 +1013,14 @@ ll ask(int u, int l, int r, int cl, int cr){
 	if (cl<mid) ret+=ask(lc,l,mid,cl,cr);
 	if (cr>mid) ret+=ask(rc,mid,r,cl,cr);
 	return ret%p;
+}
+
+ll pointask(int u, int l, int r, int q){
+	if (l==r-1) return sum[u];
+	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
+	int mid=l+r>>1;
+	if (cl<mid) return pointask(lc,l,mid,q);
+	return pointask(u,mid,r,q);
 }
 
 #undef lc
@@ -1748,6 +1756,31 @@ void fi(int x, int s=0){
 	if (u && x==val[u]) splay(u,s);
 	else if (!u) splay(p,s);
 }
+
+#ifdef NO_COMPILE
+//memory restricted open
+int avail[maxn],avac;
+void open(int &u, int x){
+	u=avail[--avac];
+	lc=rc=pa[u]=0;
+	siz[u]=cnt[u]=1;
+	val[u]=x;
+}
+void pre(){
+	for (int i=1;i<maxn;i++) 
+		avail[avac++]=maxn-i;
+	open(root, -10086); // in section problem, add virtual point is convenient
+	int r; open(r, -10086);
+	ch[root][1]=r; pa[r]=root;
+	upd(root);
+}
+void release(int u){
+	if (!u) return;
+	release(lc);
+	release(rc);
+	avail[avac++]=u;
+}
+#endif
 void open(int &u, int x){
 	u=++trcnt;
 	lc=rc=pa[u]=0;
@@ -1773,7 +1806,7 @@ void ins(int &u, int x, int p){
 void del_(){
 	int u=root;
 	if (rc){
-		root=rc; rk(1,0);
+		root=rc; rk(1,0); //right, though it's hard to understand
 		ch[root][0]=lc;
 		if (ch[root][0]) pa[ch[root][0]]=root;
 	}
@@ -2953,6 +2986,7 @@ void test(){
 	cout<<poly_cirArea(poly, 4, {{0,0},1})<<" expect ???\n";
 }
 
+//cdq func for minDisPoint
 point tp[200010],use[200010];
 db cdq(point *p,int l, int r){
 	if (l==r-1) return 1e12;
@@ -3190,6 +3224,61 @@ void nqueens(int n){
 		}
 	dfs_nqueen(0);
 	cout<<sum<<'\n';
+}
+}
+
+//O(nlogn)
+namespace HFMT{
+const int maxn=30;
+
+//finally tn is the root of tree
+int a[maxn],ch[maxn<<1][2],n,tn; //idx from 1..n
+int sum[maxn<<1]; //not very necessary
+//input  a[1..n]:frequency of each character, n: |character|
+//result ch[maxn<<1][2], the path to leaf node is the encoding of input char
+void build(){
+	priority_queue<PII> qu;
+	for (int i=1;i<=n;i++) qu.emplace(-a[i],i),sum[i]=a[i];
+	tn=n;
+	while (qu.size()>1){
+		int x1=qu.top().first, p1=qu.top().second;
+		qu.pop();
+		int x2=qu.top().first, p2=qu.top().second;
+		qu.pop();
+		ch[++tn][0]=p1; ch[tn][1]=p2;
+		sum[tn]=-x1-x2;
+		qu.emplace(x1+x2, tn);
+	}
+}
+int len[maxn];
+//dfs: debug, and label lenth of encode after
+void dfs(int u=tn, int deep=0){
+	if (!u) return;
+	if (u<=n) len[u]=deep;
+	dfs(ch[u][1],deep+1);
+	//for (int i=0;i<deep;i++) printf("  "); printf("%d\n",sum[u]);
+	dfs(ch[u][0],deep+1);
+}
+};
+
+namespace SquareTransform{
+const int N=100;
+typedef int Arr[N][N];int n;
+void cp(Arr to,Arr from){inc(i,n)inc(j,n) to[i][j]=from[i][j];}
+Arr _t;
+//clockwise 90 deg
+void rot(Arr a){
+	inc(i,n)inc(j,n) _t[j][n-i-1]=a[i][j];
+	cp(a,_t);
+}
+//LR flip
+void flip(Arr a){
+	inc(i,n)inc(j,n) _t[i][n-j-1]=a[i][j];
+	cp(a,_t);
+}
+bool same(Arr a, Arr b){
+	inc(i,n) inc(j,n) if (a[i][j]!=b[i][j]) return 0;
+	return 1;
 }
 }
 
