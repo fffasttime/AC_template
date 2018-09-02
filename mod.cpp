@@ -1028,6 +1028,55 @@ ll pointask(int u, int l, int r, int q){
 
 }
 
+
+namespace FSEGT{
+const int maxn=200010;
+int sum[maxn<<5], root[maxn], lc[maxn<<5], rc[maxn<<5],trcnt;
+int a[maxn],b[maxn];
+
+void build(int &u, int l, int r){
+	u=trcnt++;
+	if (l==r-1) return;
+	int mid=l+r>>1;
+	build(lc[u],l,mid); build(rc[u],mid,r);
+}
+int mod(int u, int l, int r, int c){
+	int v=trcnt++;
+	lc[v]=lc[u]; rc[v]=rc[u]; sum[v]=sum[u]+1;
+	if (l==r-1) return v;
+	int mid=l+r>>1;
+	if (c<mid) lc[v]=mod(lc[v],l,mid,c);
+	else rc[v]=mod(rc[v],mid,r,c);
+	return v;
+}
+int query(int u, int v, int l, int r, int q){
+	int mid=l+r>>1, x=sum[lc[v]]-sum[lc[u]];
+	if (l==r-1) return l;
+	if (x>=q) return query(lc[u],lc[v],l,mid,q);
+	return query(rc[u],rc[v],mid,r,q-x);
+}
+//ask: [l,r) kth number
+int main(){
+	int n,m;
+	cin>>n>>m;
+	for (int i=0;i<n;i++)
+		scanf("%d", a+i),b[i]=a[i];
+	sort(b,b+n);
+	int n1=unique(b,b+n)-b;
+	build(root[0],0,n1);
+	for (int i=0;i<n;i++){
+		int q=lower_bound(b,b+n1,a[i])-b;
+		root[i+1]=mod(root[i],0,n1,q);
+	}
+	for (int i=0;i<m;i++){
+		int l,r,q;
+		scanf("%d%d%d",&l,&r,&q);
+		printf("%d\n",b[query(root[l-1],root[r],0,n1,q)]);
+	}
+	return 0;
+}
+}
+
 namespace NetFlow{
 #define INF 0x3f3f3f3f
 const int maxn=1003,maxm=10003<<4;
@@ -1259,7 +1308,7 @@ int kmp_cnt(char *t, int tl){
 }
 }
 
-namespace PAM{
+namespace ACAM{
 const int maxn=100000,alpha=26; //maxn >= sigma len(si)
 int ch[maxn][alpha],val[maxn],fail[maxn],lbl[maxn],len[maxn],pc=0;
 int cnt[1000]; //str appear times, first element is 1
@@ -3260,6 +3309,109 @@ void dfs(int u=tn, int deep=0){
 	dfs(ch[u][0],deep+1);
 }
 };
+
+namespace KDT{
+const int N=1000010, inf=0x3f3f3f3f;
+int n,m,K,rt,ans;
+
+//s[]:tree node  p[2]:2-d coord of leaf node  x[2]:min(LB) coord of a subspace  y[2]:max(RT) coord
+struct Node{
+	int p[2],x[2],y[2];
+	bool operator<(const Node &v)const{
+		return p[K]<v.p[K];
+	}
+}a[N],s[N],q;
+int ch[N][2];
+#define lc ch[u][0]
+#define rc ch[u][1]
+void upd(int u){
+	inc(i,2){
+		if (lc) s[u].x[i]=min(s[u].x[i],s[lc].x[i]),
+				s[u].y[i]=max(s[u].y[i],s[lc].y[i]);
+		if (rc) s[u].x[i]=min(s[u].x[i],s[rc].x[i]),
+				s[u].y[i]=max(s[u].y[i],s[rc].y[i]);
+	}
+}
+void add(int u, Node &t){
+	inc(i,2) s[u].x[i]=s[u].y[i]=s[u].p[i]=t.p[i];
+}
+int disL1Min(int u, Node &t){ //min L1 dis to a Rect of in_tree node
+	int ret=0;
+	inc(i,2) 
+		if (t.p[i]>s[u].y[i]) ret+=t.p[i]-s[u].y[i];
+		else if (t.p[i]<s[u].x[i]) ret+=s[u].x[i]-t.p[i];
+	return ret;
+}
+int disL1Max(int u, Node &t){
+	int ret=0;
+	inc(i,2) ret+=max(abs(t.p[i]-s[u].x[i]),abs(t.p[i]-s[u].y[i]));
+	return ret;
+}
+int sqr(int a){
+	return a*a;
+}
+int disL2Min(int u, Node &t){
+	int ret=0;
+	inc(i,2) 
+		if (t.p[i]>s[u].y[i]) ret+=sqr(t.p[i]-s[u].y[i]);
+		else if (t.p[i]<s[u].x[i]) ret+=sqr(t.p[i]-s[u].x[i]);
+	return ret;
+}
+int disL2Max(int u, Node &t){ //max coord dis
+	int ret=0;
+	inc(i,2) ret+=max(sqr(t.p[i]-s[u].x[i]),sqr(t.p[i]-s[u].y[i]));
+	return ret;
+}
+void build(int &u, int l, int r, int cur){ //O(nlogn)
+	u=l+r>>1; K=cur;
+	nth_element(a+l,a+u,a+r+1);
+	add(u,a[u]);
+	if (l<u) build(lc,l,u-1,cur^1);
+	if (r>u) build(rc,u+1,r,cur^1);
+	upd(u);
+}
+//Maybe we need to rebuild the tree after unbalanced insert
+void ins(int u, int cur){  
+	if (q.p[cur]<s[u].p[cur])
+		if (lc) ins(lc,cur^1);
+		else lc=++n,add(n,q);
+	else
+		if (rc) ins(rc,cur^1);
+		else rc=++n,add(n,q);
+	upd(u);
+}
+void ask(int u){
+	ans=min(ans,abs(s[u].p[0]-q.p[0])+abs(s[u].p[1]-q.p[1])); //L1 dis
+	int dl=lc?disL1Min(lc,q):inf, dr=rc?disL1Min(rc,q):inf;
+	//int dl=lc?disL1Max(lc,q):0, dr=rc?disL1Max(rc,q):0;
+	if (dl<dr){ //trim branch, swap > < when search max dis point
+		if (dl<ans) ask(lc);
+		if (dr<ans) ask(rc);
+	}
+	else{
+		if (dr<ans) ask(rc);
+		if (dl<ans) ask(lc);
+	}
+}
+//minDisPoint (L1 dis) with ins operate
+//each query asks one nearest point of a giving coord
+int main(){
+	scanf("%d%d",&n,&m);
+	for (int i=1;i<=n;i++) scanf("%d%d",&a[i].p[0],&a[i].p[1]);
+	build(rt,1,n,0);
+	while (m--){
+		int k; scanf("%d%d%d",&k,&q.p[0],&q.p[1]);
+		if (k==1) ins(rt,0);
+		else{
+			ans=inf; ask(rt);
+			printf("%d\n",ans);
+		}
+	}
+	return 0;
+}
+#undef lc
+#undef rc
+}
 
 namespace SquareTransform{
 const int N=100;
