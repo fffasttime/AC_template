@@ -166,7 +166,7 @@ ll inv_euclid(ll v, ll p){
 	else
 		return -1;
 }
-//中国剩余定理
+//CRT
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
@@ -181,9 +181,9 @@ ll china(int n, ll a[], ll p[]){
 	return (x+M)%M;
 }
 
-//中国剩余定理_非互质
-//x=a1(mod m1)
-//x=a2(mod m2)
+//EXTCRT
+//x=a1(mod p1)
+//x=a2(mod p2)
 //...
 ll china1(int n, ll a[], ll p[]){
 	ll n1=p[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
@@ -366,6 +366,38 @@ void argmin_SimulateAnneal(double t0=5000, double tend=1e-6, double delta=0.99){
 		if (ne<anse)
 			ans=p, anse=ne;//cout<<ans.x<<' '<<ans.y<<' '<<anse<<'\n';
 		t*=delta;
+	}
+}
+}
+
+namespace Cantor{
+int fac[]={1,1,2,6,24,120,720,5040,40320,362880,3628800};
+bool vis[20];
+//get rank of permutation
+//output range: [0,n!) 
+int cantor(int n, int a[]){
+	int ret=0;
+	for (int i=0;i<n;i++){
+		int t=0;
+		for (int j=i+1;j<n;j++)
+			if (a[i]>a[j]) t++;
+		ret+=t*fac[n-i-1];
+	}
+	return ret;
+}
+//get kth permutation of {1..n}
+//input range: [0,n!) 
+void decantor(int n, int k, int ans[]){
+	memset(vis,0,sizeof(vis));
+	for (int i=0,j;i<n;i++){
+		int t=k/fac[n-i-1];
+		for (j=1;j<=n;j++)
+			if (!vis[j])
+				if (t==0) break;
+				else t--;
+		ans[i]=j;
+		vis[j]=1;
+		k%=fac[n-i-1];
 	}
 }
 }
@@ -1546,7 +1578,7 @@ void upd2(Node *u, int col){
 	for (;u->las!=col && u!=root;u=u->p)
 		u->las=col,ans[col]+=u->vis;
 }
-//n: mode str, m: query str
+//n: ptn str, m: query str
 int main(){
 	int n,m; cin>>n>>m;
 	for (int i=0;i<n;i++){
@@ -1597,6 +1629,7 @@ int main(){
 
 namespace Manacher{
 const int maxn=10000000;
+//p[]: max palindrome len at pos i
 int p[maxn<<1];char s[maxn<<1],s0[maxn];
 int sl,s0l;
 int manacher(){
@@ -1604,7 +1637,7 @@ int manacher(){
     sl=1; s[0]='$'; s[1]='#';
     inc(i,s0l) s[++sl]=s0[i],s[++sl]='#';
     s[++sl]=0;
-    int mx=0,mi=0,ans=0;
+    int mx=0,mi=0,ans=0; //mx: max cur pstr right pos, mi: max cur pstr center pos
     rep(i,1,sl){
         p[i]=i<mx?min(p[mi*2-i], mx-i):1;
         while (s[i-p[i]]==s[i+p[i]]) p[i]++;
@@ -1612,6 +1645,58 @@ int manacher(){
         ans=max(ans,p[i]-1);
     }
     return ans;
+}
+}
+
+namespace PAM{
+const int maxn=2000500;
+
+//ch[x]: if cur pstr is a, the ch is xax.  len: len of cur pstr
+//fail: longest pstr suffix of cur point.  cnt: count of this pstr.
+struct Node{
+    int ch[10],fail,len;
+	int cnt;
+}node[maxn];
+int nodec,cur, len[maxn];
+char s[maxn];
+
+void pre(){
+    node[10].fail=1; node[1].len=-1;
+    nodec=2;cur=0;
+}
+void insert(int p){
+    int j, x=s[p]-'0';
+    while(s[p-node[cur].len-1]!=s[p])cur=node[cur].fail; //find ch
+    if(!node[cur].ch[x]){
+        node[nodec].len=node[cur].len+2;
+        j=node[cur].fail;
+        while(s[p-node[j].len-1]!=s[p])j=node[j].fail; //find fail
+        node[nodec].fail=node[j].ch[x];
+        node[cur].ch[x]=nodec;
+        cur=nodec;
+		nodec++;
+    }
+    else cur=node[cur].ch[x];
+    len[p]=node[cur].len;
+	node[cur].cnt++;
+}
+void dfs1(int u, int deep){
+	cout<<ts<<' '<<node[u].len<<' '<<x<<'\n';
+	for (int i=0;i<10;i++)
+		if (node[u].ch[i]){
+			ts[deep]=i+'0';
+			dfs1(node[u].ch[i],deep+1);
+		}
+}
+int main(){
+	pre();
+	scanf("%s",s); int l=strlen(s);
+	for (int i=0;i<l;i++) insert(i);
+	for (int i=nodec-1;i>0;i--) 
+		node[node[i].fail].cnt+=node[i].cnt;
+	dfs1(0,0); //even pstr
+	dfs1(1,0); //odd pstr
+	return 0;
 }
 }
 
@@ -3431,6 +3516,71 @@ void flip(Arr a){
 bool same(Arr a, Arr b){
 	inc(i,n) inc(j,n) if (a[i][j]!=b[i][j]) return 0;
 	return 1;
+}
+}
+
+namespace DividePoint{
+const int maxn=20010,maxm=40010;
+
+struct Edge{
+	int to,nxt,c;
+}e[maxm];
+int ec,n,head[maxn];
+
+void added(int a, int b, int c){
+	e[++ec]={b,head[a],c};
+	head[a]=ec;
+	e[++ec]={a,head[b],c};
+	head[b]=ec;
+}
+
+int query[maxn],q,siz[maxn],ms[maxn];
+int MS,root,tn, K;
+bool vis[maxn];
+
+void dfs(int u,int fa, int len){
+	;//counter
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (v!=fa && !vis[v])
+			dfs(v,u,len+e[i].c);
+}
+int calc(int u, int x0){
+	dfs(u,u,x0);
+	return 0; //return count
+}
+int getrt(int u, int fa){
+	siz[u]=1; ms[u]=0;
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (v!=fa && !vis[v])
+			getrt(v,u),
+			siz[u]+=siz[v],ms[u]=max(ms[u],siz[v]);
+	ms[u]=max(ms[u],tn-siz[u]);
+	if (ms[u]<MS) root=u,MS=ms[u];
+}
+int ans=0;
+void divide(int u){
+	vis[u]=1;
+	ans+=calc(u,0);
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (!vis[v]){
+			ans-=calc(v,e[i].c); //sub invalid path
+			tn=siz[u]; root=0;
+			MS=0x3f3f3f3f; getrt(v,u);
+			divide(root);
+		}
+}
+int main(){
+	int m;
+	scanf("%d",&n);
+	for (int i=0;i<n-1;i++){
+		int a,b,c; scanf("%d%d%d",&a,&b,&c);
+		added(a,b,c);
+	}
+	tn=n; root=0; MS=0x3f3f3f3f; getrt(1,1);
+	divide(root);
+	int g=__gcd(ans,n*n);
+	cout<<ans/g<<'/'<<n*n/g<<'\n';
+	return 0;
 }
 }
 
