@@ -18,6 +18,8 @@ Description:
 #include <set>
 #include <map>
 #include <queue>
+#include <complex>
+#include <cassert>
 #include <algorithm>
 using namespace std;
 #define USE_ATTR
@@ -620,7 +622,7 @@ void tarjan_point(int u, int fa){
 	if (fa<0 && ch==1) iscut[u]=0;
 }
 //dfs dcc block
-int cnt,cucnt,vis[maxn];
+int cnt,cucnt;
 void dfs_dcc(int u, int dcn){
 	vis[u]=dcn; 
 	cnt++;
@@ -1046,12 +1048,11 @@ ll ask(int u, int l, int r, int cl, int cr){
 	if (cr>mid) ret+=ask(rc,mid,r,cl,cr);
 	return ret%p;
 }
-
 ll pointask(int u, int l, int r, int q){
 	if (l==r-1) return sum[u];
 	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
 	int mid=l+r>>1;
-	if (cl<mid) return pointask(lc,l,mid,q);
+	if (l<mid) return pointask(lc,l,mid,q);
 	return pointask(u,mid,r,q);
 }
 
@@ -1260,6 +1261,38 @@ int MCMF(){
 			}
 		}
 		if (dis[t]==INF) break;
+		int mc=INF;
+		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap-ed[fr[i]].flow);
+		for (int i=t;i!=s;i=fp[i]){
+			ed[fr[i]].flow+=mc;
+			ed[fr[i]^1].flow-=mc;
+			ans+=mc*ed[fr[i]].cost;
+		}
+	}
+	return ans;
+}
+//dijkstra version, but seems slower than before?
+int h[maxn];
+int MCMF_dijk(){
+	memset(h,0,sizeof(h)); //set h[all vertex] to 0
+	int ans=0;
+	while (1){
+		priority_queue<pair<int,int>> qu;
+		memset(dis,0x3f,sizeof(dis));
+		dis[s]=0; qu.push({0,s});
+		while (!qu.empty()){
+			int du=-qu.top().first, u=qu.top().second;
+			qu.pop();
+			if (dis[u]<du) continue;
+			for (int i=head[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
+				if (ed[i].flow<ed[i].cap && dis[v]>dis[u]+ed[i].cost+h[u]-h[v]){
+					dis[v]=dis[u]+ed[i].cost+h[u]-h[v];
+					fp[v]=u; fr[v]=i;
+					qu.push({-dis[v],v});
+				}
+		}
+		if (dis[t]>INF/3) break;
+		for (int i=0;i<=n;i++) h[i]+=dis[i];
 		int mc=INF;
 		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap-ed[fr[i]].flow);
 		for (int i=t;i!=s;i=fp[i]){
@@ -1680,8 +1713,9 @@ void insert(int p){
     len[p]=node[cur].len;
 	node[cur].cnt++;
 }
+char ts[maxn];
 void dfs1(int u, int deep){
-	cout<<ts<<' '<<node[u].len<<' '<<x<<'\n';
+	cout<<ts<<' '<<node[u].len<<'\n'; //cur node
 	for (int i=0;i<10;i++)
 		if (node[u].ch[i]){
 			ts[deep]=i+'0';
@@ -2181,13 +2215,13 @@ bool gauss_solve(){
 		for (int j=i+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
 		if (maxl!=i) swap(a[i],a[maxl]);
-		double r=a[i][i];
-		if (fabs(r)<eps) return 0; //no solution or infinity solution 
+		if (fabs(a[i][i])<eps) return 0; //no solution or infinity solution 
 		for (int j=i+1;j<n;j++){
-			r=a[j][i]/a[i][i];
+			double r=a[j][i]/a[i][i];
 			for (int k=i;k<m;k++)
 				a[j][k]-=r*a[i][k];
 		}
+		double r=a[i][i];
 		for (int k=i;k<m;k++) a[i][k]/=r;
 	}
 	for (int i=n-1;i>=0;i--){
@@ -2206,14 +2240,13 @@ bool matinv(){
 		for (int j=i+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
 		if (i!=maxl) swap(a[i],a[maxl]),swap(b[i],b[maxl]);
+		if (fabs(a[i][i])<eps) return 0; //No trivil
 		double r=a[i][i];
-		if (fabs(r)<eps) return 0; //No trivil
 		for (int k=0;k<n;k++) a[i][k]/=r,b[i][k]/=r; //k start from 0
 		for (int j=i+1;j<n;j++){
-			r=a[j][i]/a[i][i];
-			for (int k=0;k<n;k++)
-				a[j][k]-=r*a[i][k],
-				b[j][k]-=r*b[i][k];
+			double r=a[j][i]/a[i][i];
+			for (int k=0;k<n;k++) //k start from 0
+				a[j][k]-=r*a[i][k], b[j][k]-=r*b[i][k];
 		}
 	}
 	return 1;
@@ -2225,10 +2258,9 @@ double det(){
 		for (int j=i+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
 		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
-		double r=a[i][i];
-		if (fabs(r)<eps) return 0;
+		if (fabs(a[i][i])<eps) return 0;
 		for (int j=i+1;j<n;j++){
-			r=a[j][i]/a[i][i];
+			double r=a[j][i]/a[i][i];
 			for (int k=i;k<n;k++)
 				a[j][k]-=r*a[i][k];
 		}
@@ -2237,16 +2269,15 @@ double det(){
 	return ans;
 }
 int matrank(){
-	int l=0;
-	for (int i=0;i<n;i++){
-		int maxl=i;
+	int l=0; //real line
+	for (int i=0;i<m;i++){ //i: start pos
+		int maxl=l;
 		for (int j=l+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (i!=maxl) swap(a[i],a[maxl]);
-		double r=a[l][i];
-		if (fabs(r)<eps) continue;
+		if (l!=maxl) swap(a[l],a[maxl]);
+		if (fabs(a[l][i])<eps) continue;
 		for (int j=l+1;j<n;j++){
-			r=a[j][i]/a[l][i];
+			double r=a[j][i]/a[l][i];
 			for (int k=i;k<m;k++)
 				a[j][k]-=r*a[i][k];
 		}
@@ -2254,29 +2285,55 @@ int matrank(){
 	}
 	return l;
 }
-ll p=19260817;
+const ll p=19260817; //const is faster than normal variable
 //int det with abs,mod
 //used by Matrix-Tree theorem
 //M-T theo: a[i][i]=-deg i, a[i][j]=cnt(i->j), n=|u|-1
 //!--
 ll detint_abs(ll **a){
 	ll ans=1;
+	for (int i=0;i<n;i++) for (int j=0;j<n;j++) if (a[i][j]<0) a[i][j]+=p;
 	for (int i=0;i<n;i++){
 		int maxl=i;
-		for (int j=i+1;j<n;j++)
-			if (a[j][i]>0) {maxl=j;break;}
+		for (int j=i;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
 		if (i!=maxl) swap(a[i],a[maxl]);
 		if (a[i][i]==0) return 0;
+		ans=ans*a[i][i]%p;
+		int v=inv(a[i][i],p);
+		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
 		for (int j=i+1;j<n;j++){
 			if (!a[j][i]) continue;
-			ans=ans*a[i][i]%p; //multi div op
+			ll r1=a[j][i];
 			for (int k=i;k<n;k++)
-				a[j][k]=(a[j][k]*a[i][i]-a[j][i]*a[i][k]+p)%p;
+				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
+				//a[j][k]=(a[j][k]*a[i][i]-a[j][i]*a[i][k]%p+p)%p; //not good
 		}
 	}
-	ans=inv(ans,p);
-	for (int i=0;i<n;i++) ans=ans*a[i][i]%p;
-	return ans;
+	return ans; //not nagetive
+}
+//matinv with mod
+//require m=2*n, result is a[i][(0..n-1)+n]
+bool matinv_int(ll **a){
+	m=2*n;
+	//a[i][(0..n-1)+n]=0; //set to 0 
+	for (int i=0;i<n;i++) a[i][i+n]=1;	
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
+		if (i!=maxl) swap(a[i],a[maxl]);
+		if (a[i][i]==0) return 0;
+		int v=inv(a[i][i],p);
+		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
+		for (int j=0;j<n;j++){
+			if (!a[j][i] || j==i) continue;
+			ll r1=a[j][i];
+			for (int k=i;k<m;k++)
+				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
+		}
+	}
+	return 1;
 }
 }
 
@@ -3535,7 +3592,7 @@ void added(int a, int b, int c){
 }
 
 int query[maxn],q,siz[maxn],ms[maxn];
-int MS,root,tn, K;
+int MS,root,tn;
 bool vis[maxn];
 
 void dfs(int u,int fa, int len){
@@ -3548,7 +3605,7 @@ int calc(int u, int x0){
 	dfs(u,u,x0);
 	return 0; //return count
 }
-int getrt(int u, int fa){
+void getrt(int u, int fa){
 	siz[u]=1; ms[u]=0;
 	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
 		if (v!=fa && !vis[v])
@@ -3570,16 +3627,14 @@ void divide(int u){
 		}
 }
 int main(){
-	int m;
 	scanf("%d",&n);
 	for (int i=0;i<n-1;i++){
 		int a,b,c; scanf("%d%d%d",&a,&b,&c);
 		added(a,b,c);
 	}
-	tn=n; root=0; MS=0x3f3f3f3f; getrt(1,1);
+	tn=n; root=0; MS=0x3f3f3f3f; getrt(1,1); //first point divide
 	divide(root);
-	int g=__gcd(ans,n*n);
-	cout<<ans/g<<'/'<<n*n/g<<'\n';
+	cout<<ans<<'\n';
 	return 0;
 }
 }
