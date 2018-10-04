@@ -106,8 +106,8 @@ Mat mul(const Mat &a, const Mat &b){
 	Mat c;
 	for (int i=0;i<N;i++)
 		for (int j=0;j<N;j++){
-			for (int k=0;k<=N;k++)
-				c.m[i][j]+=a.m[i][j]*b.m[i][j];
+			for (int k=0;k<N;k++)
+				c.m[i][j]+=a.m[i][k]*b.m[k][j];
 			//c.m[i][j]%=p;
 		}
 	return c;
@@ -120,6 +120,7 @@ Mat qpow(Mat a, int x){
 	return ans;
 }
 
+//require p is a prime
 int inv(int x, int p){
 	return qpow(x,p-2,p);
 }
@@ -127,25 +128,41 @@ int inv(int x, int p){
 namespace SimpleMath{
 
 const int maxn=1000010;
-int p[maxn],phi[maxn],pc;
+int p[maxn],phi[maxn],mu[maxn],pc;
 bool isp[maxn];
-
-void gen(){
+void genprime(){ //gen prime in range [2,maxn)
 	memset(isp,1,sizeof(isp));
 	isp[1]=0;
 	for (int i=2;i<maxn;i++){
-		if (isp[i]) p[pc++]=i,phi[i]=i-1;
+		if (isp[i]) p[pc++]=i;
+		for (int j=0;j<pc && i*p[j]<maxn;j++){
+			isp[i*p[j]]=0;
+			if (i%p[j]==0) break;
+		}
+	}
+}
+int d[maxn], c0[maxn]; //d:count of frac,  c0: temp array, i=p1^c0[i] * p2^(...) * ...
+void gennumfunc(){
+	memset(isp,1,sizeof(isp));
+	isp[1]=0;  phi[1]=mu[1]=d[1]=1;
+	for (int i=2;i<maxn;i++){
+		if (isp[i]) p[pc++]=i,phi[i]=i-1,mu[i]=-1,d[i]=2,c0[i]=1;
 		for (int j=0;j<pc && i*p[j]<maxn;j++){
 			isp[i*p[j]]=0;
 			if (i%p[j]==0){
 				phi[i*p[j]]=phi[i]*p[j];
+				mu[i*p[j]]=0;
+				c0[i*p[j]]=c0[i]+1;
+				d[i*p[j]]=d[i]/(c0[i]+1)*(c0[i]+2);
 				break;
 			}
-			phi[i*p[j]]=phi[i]*(p[j]-1);
+			phi[i*p[j]]=phi[i]*(p[j]-1); //f(ab)=f(a)f(b), when (a,b)=1
+			mu[i*p[j]]=-mu[i];
+			c0[i*p[j]]=c0[p[j]];
+			d[i*p[j]]=d[i]*2;
 		}
 	}
 }
-
 int invt[maxn];
 void invTable(int maxl, int p){
 	invt[1]=1;
@@ -163,26 +180,33 @@ ll exgcd(ll a, ll b, ll &x, ll &y){
 	y-=a/b*x;
 	return t;
 }
+//not require p is prime, but (v,p) should be 1
 ll inv_euclid(ll v, ll p){
-	ll x,y;
-	if (exgcd(v,p,x,y)==1)
-		return (x+p)%p;
-	else
-		return -1;
+	ll x,y; exgcd(v,p,x,y); //exgcd(v,p,x,y)==1 required
+	return (x+p)%p;
 }
 //CRT
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
+//result=sum(bi*Mi*Mi'), MiMi'=1(mod pi)
 ll china(int n, ll a[], ll p[]){
 	ll M=1,x=0;
 	for (int i=0;i<n;i++) M*=p[i];
 	for (int i=0;i<n;i++)	{
-		ll w=M/p[i],d,y; //x=pi*k1+a + w*k2
-		exgcd(p[i],w,d,y);
-		x=(x+w*y*a[i])%M; //get k1, pi*k1=a (Mod w)
+		ll w=M/p[i]; //x=pi*k1+a + w*k2
+		x=(x+w*qpow(w,p[i]-2,p[i])%M*a[i])%M; //get k1, pi*k1=a (Mod w)
+		//use inv_euclid() instead qpow() when p[] is not prime 
 	}
 	return (x+M)%M;
+}
+
+//CRT2 equ version
+//x=a1(mod m1), x=a2(mod m2)
+//result: x(mod p1p2)
+int CRT2(int a1, int m1, int a2, int m2){
+	int m=m1*m2;
+	return (a1*m2%m*inv_euclid(m2,m1)+a2*m1%m*inv_euclid(m1,m2))%m1;
 }
 
 //EXTCRT
@@ -191,7 +215,7 @@ ll china(int n, ll a[], ll p[]){
 //...
 ll china1(int n, ll a[], ll p[]){
 	ll n1=p[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
-	for (int i=1;i<n;i++){//依次合并方程
+	for (int i=1;i<n;i++){//merge equs by order
 		n2=p[i],a2=a[i]; 
 		c=a2-a1;
 		gcd=exgcd(n1,n2,k1,k2); //n1*k1+n2*k2=gcd(n1,n2)
@@ -204,13 +228,47 @@ ll china1(int n, ll a[], ll p[]){
 	return a1;
 }
 
+//get prime fact, x=mul(pi[i]^pa[i])
+int pi[30],pa[30]; //no more 20 prime factor in range 2^64
+int getfactor(int x){ //O(sqrt(n)), when x is a prime
+	int c=0,m=sqrt(x)+1;
+	for (int d=2;x>1 && d<=m;d++) 
+	//for (int d=2,pc=0;x>1 && d<m;pc++,d=p[pc]) //faster, O(sqrt(n)/log(n))
+		if (x%d==0){
+			while (x%d==0) pa[c]++,x/=d;
+			pi[c]=d; c++;
+		}
+	if (x>1) pi[c]=x, pa[c]=1, c++; //x is prime
+	return c;
+}
+//single number phi, O(sqrt(n))
+int getphi(int x){
+	int ans=x, pc=getfactor(x);
+	for (int i=0;i<pc;i++)
+		ans=ans/pi[i]*(pi[i]-1);
+	return ans;
+}
+//be sure p=p^k,2p^k
+//original_root(2)=1, original_root(4)=3, special judge
+int original_root(int p){
+	int phi=p-1; //int phi=getphi(p); //when p is not prime
+	int pc=getfactor(phi);
+	for (int g=2,j;;g++){ //g ~ p^0.25 in average
+		for (j=0;j<pc;j++)
+			if (qpow(g,phi/pi[j],p)==1)
+				break;
+		if (j==pc) return g;
+	}
+	//other solution of g: {g0^k | 0<k<phi, gcd(k, phi)=1}
+}
+
 //discrete logarithm
 //a^x=b(mod p)
 ll BSGS(ll a, ll b, ll p){
 	int m,v,e=1;
 	m=(int)sqrt(p+0.5);
 	v=inv(qpow(a,m,p),p);
-	map<int,int> x; //hash_map -> O(sqrt(N))
+	map<int,int> x; //unordered_map -> O(sqrt(N))
 	x[1]=0;
 	for (int i=1;i<m;i++){
 		e=e*a%p;
@@ -224,8 +282,14 @@ ll BSGS(ll a, ll b, ll p){
 	}
 	return -1;
 }
-const ll p0[]={2,3,5,7,11,13,17,19,23,29,31};
 
+//judge if x^2=n (mod p) has solution
+//qpow(n,(p-1)/2,p)=[1 nRp | p-2 n!Rp | 0 n==0]
+bool isSquareRemain(int n, int p){
+	return qpow(n,(p-1)/2,p)==1;
+}
+
+const ll p0[]={2,3,5,7,11,13,17,19,23,29,31};
 //a^(p-1)=1 (mod p) , x^2=1 (mod p) while x=1 or p-1
 bool witness(ll a,ll n,ll r,ll s){
 	ll x=qpow(a,r,n),pre=x;
@@ -237,7 +301,6 @@ bool witness(ll a,ll n,ll r,ll s){
 	if (x!=1) return 0;
 	return 1;
 }
-
 bool MillerRabin(ll n){
 	if (n<=1) return 0;
 	if (n==2) return 1;
@@ -262,7 +325,6 @@ ll pol_rho(ll n,ll c){
 	}
 	return p;
 }
-
 vector<int> primes;
 void spiltprime(ll n){
 	if (n==1) return;
@@ -271,6 +333,7 @@ void spiltprime(ll n){
 	while (t==n) t=pol_rho(n,rand()%(n-1));
 	spiltprime(t); spiltprime(n/t);
 }
+
 }
 
 struct Q{
@@ -670,6 +733,8 @@ void dfs_dcc(int u, int dcn){
 }
 //cnt: inner point of current dcc block, cucnt: cut point in cur dcc block
 void dcc_caller(){
+	//add edge...
+    //tarjan_point(1,-1); //mark dcc point
 	int dcn=0;
 	icc(i,n) if (!vis[i] && !iscut[i]){
 		dcn++; cnt=cucnt=0;
@@ -752,16 +817,17 @@ int prim_original(){
 	return ans;
 }
 #ifdef NO_COMPILE
-int deg[maxn],ansp[maxm],al,anse[maxm<<1],el;
+int deg[maxn],ansp[maxm],al,anse[maxm<<1],el; //ansp has maxm point at most
 //O(n+m), euler cycle
 //the graph MUST BE only 0 or 2 odd node, and if there is 2 odd node, u must be odd node
+//if more than 2 odd point, add virtual edge, and slice result by virtual edge
 void euler(int u){
 	for (int e=head[u];e;e=ed[e].nxt){
 		int v=ed[e].to;
 		if (!ed[e].vis && !ed[e^1].vis){
 			ed[e].vis=ed[e^1].vis=1;
 			euler(v);
-			anse[++el]=e;//ed
+			anse[++el]=e;//ed, the road and point will be reversed
 		}
 	}
 	ansp[++al]=u;
@@ -1772,9 +1838,10 @@ int cnt(Node *u, char *s){
 	return cnt(u->tr[*s-'a'],s+1);
 }
 
-int t[maxn],r[maxn], s0l; //t:temp, r:rank(ith element pos)
+int t[maxn],r[maxn]; //t:temp, r:rank(ith element pos)
 //init |right(s)| before cnt
-void initnum(){
+void initnum(int s0l){
+	rep(i,0,s0l+1) t[i]=0;
 	inc(i,nodec) t[nodes[i].l]++;
 	rep(i,1,s0l+1) t[i]+=t[i-1];
 	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
@@ -2201,17 +2268,10 @@ void open(int &u, int x){
 }
 //root, value, parent
 void ins(int &u, int x, int p){
-	if (!u){
-		open(u,x); pa[u]=p;
-		splay(u,0);
-		return;
-	}
-	if (val[u]==x){
-		cnt[u]++,siz[u]++;
-		splay(u,0);
-		return;
-	}
-	else ins(ch[u][val[u]<x],x,u);
+	if (!u) open(u,x),pa[u]=p;
+	else if (val[u]==x) cnt[u]++,siz[u]++;
+	if (!u || val[u]==x){splay(u,0);return;}
+	ins(ch[u][val[u]<x],x,u);
 	upd(u);
 }
 //delete root
@@ -2514,7 +2574,7 @@ double det(){
 }
 int matrank(){
 	int l=0; //real line
-	for (int i=0;i<m;i++){ //i: start pos
+	for (int i=0;i<m;i++){ //i: col start pos
 		int maxl=l;
 		for (int j=l+1;j<n;j++)
 			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
@@ -2579,6 +2639,45 @@ bool matinv_int(ll **a){
 	}
 	return 1;
 }
+#ifdef NO_COMPILE
+int n,m,p;
+//solve linear equ in module p
+//not require m=n+1, get a possible solution ans[0..m-1)
+bool gauss_solve_int(){  //similar to matrank
+	int l=0; //real line
+	for (int i=0;i<m;i++){ //i: col start pos
+		int maxl=l;
+		for (int j=l;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
+		if (maxl!=l) swap(a[l],a[maxl]);
+		if (!a[l][i]) continue; 
+		int v=inv(a[l][i],p);
+		for (int j=i;j<m;j++) a[l][j]=a[l][j]*v%p;
+		for (int j=l+1;j<n;j++){
+			if (!a[j][i]) continue;
+			int r1=a[j][i];
+			for (int k=i;k<m;k++)
+				a[j][k]=(a[j][k]-r1*a[l][k]%p+p)%p;
+		}
+		l++;
+	}
+//		for (int j=30;j<40;j++,cout<<'\n')
+//			for (int k=0;k<m;k++)
+//				cout<<a[j][k]<<' ';
+//		cout<<'\n';
+	int last=m-1,cur;
+	for (int i=l-1;i>=0;i--){
+		for (cur=0;cur<m-1 && !a[i][cur];cur++);
+		int t=a[i][m-1]; 
+		for (int j=last;j<m-1;j++) t=(t-a[i][j]*ans[j]%p+p)%p;
+		for (last--;last>cur;last--) ans[last]=0; //any solution
+		if (cur==m-1 && t) return 0; //no solution
+		ans[cur]=t;
+		last=cur;
+	}
+	return 1;
+}
+#endif
 }
 
 namespace LCA{
