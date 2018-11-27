@@ -1,5 +1,5 @@
 /*
-Name: 
+Name: AC_template_main
 Author: fffasttime 
 Date: 
 Description: 
@@ -922,7 +922,7 @@ void fft(cd a[], int n, int dft){
 	}
 	if (dft==-1) for (int i=0;i<n;i++) a[i]/=n;
 }
-ll G=3,P=1004535809;
+ll G=3,P=998244353;
 void ntt(ll *a, int n, int dft){
 	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
 	for (int s=1;s<n;s<<=1){
@@ -944,11 +944,11 @@ void ntt(ll *a, int n, int dft){
 }
 void conv(cd *fa, cd *fb, int s, cd *ret){
 	static cd a[maxl],b[maxl];
-	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
+	memcpy(a,fa,sizeof(cd)*s); memcpy(b,fb,sizeof(cd)*s);
 	fft(a,s,1); fft(b,s,1);
 	for (int i=0;i<s;i++) a[i]*=b[i];
 	fft(a,s,-1);
-	memcpy(ret,a,sizeof(ll)*s);
+	memcpy(ret,a,sizeof(cd)*s);
 }
 void conv(ll *fa, ll *fb, int s, ll *ret){
 	static ll a[maxl],b[maxl];
@@ -1154,7 +1154,8 @@ ll LangrangeInter(ll k, ll p){
 }
 
 namespace FWT{
-int N;
+int N,P,inv2;
+const int maxl=1<<18+1;
 void fwt_or(int *a,int opt){
     for(int i=1;i<N;i<<=1)
         for(int p=i<<1,j=0;j<N;j+=p)
@@ -1181,9 +1182,9 @@ void fwt_xor(int *a,int opt){
 void bit_conv(int *fa, int *fb, int *c){
 	static int a[maxl],b[maxl];
 	memcpy(a,fa,sizeof(int)*N); memcpy(b,fb,sizeof(int)*N);
-	fwt_xor(a,s,1); fwt_xor(b,s,1);
-	for (int i=0;i<s;i++) a[i]=a[i]*b[i]%P;
-	fwt_xor(a,s,-1);
+	fwt_xor(a,1); fwt_xor(b,1);
+	for (int i=0;i<N;i++) a[i]=a[i]*b[i]%P;
+	fwt_xor(a,-1);
 	memcpy(c,a,sizeof(int)*N);
 }
 }
@@ -1532,7 +1533,7 @@ ll pointask(int u, int l, int r, int q){
 	if (l==r-1) return sum[u];
 	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
 	int mid=l+r>>1;
-	if (l<mid) return pointask(lc,l,mid,q);
+	if (q<mid) return pointask(lc,l,mid,q);
 	return pointask(u,mid,r,q);
 }
 
@@ -2042,6 +2043,7 @@ int lcs(char *x1){
 
 //mulit-str SAM
 namespace GSAM{
+const int maxn=200010;
 struct Node{
 	int l, num, las, vis;
 	Node *p;
@@ -3531,7 +3533,9 @@ db poly_cirArea(point *p, int n, circle c){
 }
 
 //average O(n)
-circle mincirCover(point *p, int n){
+circle mincirCover(point *p0, int n){
+	static point p[maxn];
+	copy(p0,p0+n,p);
     random_shuffle(p,p+n);
     circle c(p[0],0);
     for (int i=1;i<n;i++)
@@ -3550,6 +3554,8 @@ circle mincirCover(point *p, int n){
     return c;
 }
 
+const int maxn=100010;
+//max dis point pair on poly
 double polyDiam(point *p0, int n0){
 	static point p[maxn];
 	int n=convex(p0,n0,p);

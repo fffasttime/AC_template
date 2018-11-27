@@ -99,17 +99,6 @@ namespace Manacher //...
 namespace Heap //...
 
 namespace Treap
-  __open
-  __upd
-  __rot
-  ins
-  delx
-  rk   //rank x
-  findx
-  findr  //find by rank
-  pred
-  succ
-  dfs_debug
 
 namespace Splay
 
@@ -146,4 +135,3 @@ namespace XorBase
 namespace DLX
   sudoku_solver
   n_queens_demo
-  
