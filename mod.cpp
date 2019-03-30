@@ -218,7 +218,7 @@ ll china(int n, ll a[], ll p[]){
 //result: x(mod p1p2)
 int CRT2(int a1, int m1, int a2, int m2){
 	int m=m1*m2;
-	return (a1*m2%m*inv_euclid(m2,m1)+a2*m1%m*inv_euclid(m1,m2))%m1;
+	return (a1*m2%m*inv_euclid(m2,m1)+a2*m1%m*inv_euclid(m1,m2))%m;
 }
 
 //EXTCRT
@@ -1245,25 +1245,25 @@ int S(){
 }
 
 namespace TreeArr{
-
+//WARN: index of tr[] statrs from 1
 const int maxn=100010;
 int tr[maxn]; int n;
-void add(int p, int x){for(;p<=n;p+=p&-p) tr[p]+=x;}
-ll sum(int p){ll ret=0;for(;p;p-=p&-p) ret+=tr[p];return ret;}
+void add(int p, int x){for(;p<=n;p+=p&-p)tr[p]+=x;}
+ll sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}
 
-//section add and section sum version 
+//section add and section sum version, section [l,r]
 template <typename X>    
 struct tree_array{    
     struct tree_array_single{    
-        X arr[maxn];    
-        void add(int x,X n){while(x<=N)arr[x]+=n,x+=x&-x;}    
-        X sum(int x){X sum=0;while(x)sum+=arr[x],x-=x&-x;return sum;}    
+        X tr[maxn];    
+        void add(int p,X x){for(;p<=n;p+=p&-p)tr[p]+=x;}    
+        X sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}    
     }T1,T2;    
-    void add(int x,X n){T1.add(x,n);T2.add(x,x*n);}      
-    X sum(int x){return (x+1)*T1.sum(x)-T2.sum(x);}
+    void add(int p,X x){T1.add(p,x);T2.add(p,p*x);}      
+    X sum(int p){return (p+1)*T1.sum(p)-T2.sum(p);}
 public:
-    void update(int L,int R,int n){add(L,n);add(R+1,-n);}  
-    X query(int L,int R){return sum(R)-sum(L-1);}    
+    void update(int l,int r,int x){add(l,x);add(r+1,-x);}  
+    X query(int l,int r){return sum(r)-sum(l-1);}    
 };
 }
 
@@ -2177,7 +2177,7 @@ int nodec,cur, len[maxn];
 char s[maxn];
 
 void pre(){
-    node[10].fail=1; node[1].len=-1;
+    node[0].fail=1; node[1].len=-1;
     nodec=2;cur=0;
 }
 void insert(int p){

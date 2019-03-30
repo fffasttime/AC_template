@@ -58,7 +58,7 @@ void gettokens(const string &s){
 		//number, integer or float
 		if (isdigit(ch)){
 			int dot=0;
-			while (isdigit(ch) || ch=='.'){
+			while (isdigit(ch) || ch=='.' || isdigit(ch)){
 				os<<ch; ss.get();
 				if (ch=='.') dot++;
 				ch=ss.peek();
