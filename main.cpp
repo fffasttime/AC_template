@@ -125,7 +125,7 @@ int inv(int x, int p){
 	return qpow(x,p-2,p);
 }
 
-namespace SimpleMath{
+namespace MathTheory{
 
 const int maxn=1000010;
 int p[maxn],phi[maxn],mu[maxn],pc;
@@ -383,6 +383,38 @@ void pre(){
 }
 }
 
+namespace Cantor{
+int fac[]={1,1,2,6,24,120,720,5040,40320,362880,3628800};
+bool vis[20];
+//get rank of permutation
+//output range: [0,n!) 
+int cantor(int n, int a[]){
+	int ret=0;
+	for (int i=0;i<n;i++){
+		int t=0;
+		for (int j=i+1;j<n;j++)
+			if (a[i]>a[j]) t++;
+		ret+=t*fac[n-i-1];
+	}
+	return ret;
+}
+//get kth permutation of {1..n}
+//input range: [0,n!) 
+void decantor(int n, int k, int ans[]){
+	memset(vis,0,sizeof(vis));
+	for (int i=0,j;i<n;i++){
+		int t=k/fac[n-i-1];
+		for (j=1;j<=n;j++)
+			if (!vis[j])
+				if (t==0) break;
+				else t--;
+		ans[i]=j;
+		vis[j]=1;
+		k%=fac[n-i-1];
+	}
+}
+}
+
 namespace Berlekamp_Massey{
 const int maxn=2010;
 
@@ -477,38 +509,6 @@ void argmin_SimulateAnneal(double t0=5000, double tend=1e-6, double delta=0.99){
 		if (ne<anse)
 			ans=p, anse=ne;//cout<<ans.x<<' '<<ans.y<<' '<<anse<<'\n';
 		t*=delta;
-	}
-}
-}
-
-namespace Cantor{
-int fac[]={1,1,2,6,24,120,720,5040,40320,362880,3628800};
-bool vis[20];
-//get rank of permutation
-//output range: [0,n!) 
-int cantor(int n, int a[]){
-	int ret=0;
-	for (int i=0;i<n;i++){
-		int t=0;
-		for (int j=i+1;j<n;j++)
-			if (a[i]>a[j]) t++;
-		ret+=t*fac[n-i-1];
-	}
-	return ret;
-}
-//get kth permutation of {1..n}
-//input range: [0,n!) 
-void decantor(int n, int k, int ans[]){
-	memset(vis,0,sizeof(vis));
-	for (int i=0,j;i<n;i++){
-		int t=k/fac[n-i-1];
-		for (j=1;j<=n;j++)
-			if (!vis[j])
-				if (t==0) break;
-				else t--;
-		ans[i]=j;
-		vis[j]=1;
-		k%=fac[n-i-1];
 	}
 }
 }
@@ -1244,29 +1244,6 @@ int S(){
 #undef CS
 }
 
-namespace TreeArr{
-//WARN: index of tr[] statrs from 1
-const int maxn=100010;
-int tr[maxn]; int n;
-void add(int p, int x){for(;p<=n;p+=p&-p)tr[p]+=x;}
-ll sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}
-
-//section add and section sum version, section [l,r]
-template <typename X>    
-struct tree_array{    
-    struct tree_array_single{    
-        X tr[maxn];    
-        void add(int p,X x){for(;p<=n;p+=p&-p)tr[p]+=x;}    
-        X sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}    
-    }T1,T2;    
-    void add(int p,X x){T1.add(p,x);T2.add(p,p*x);}      
-    X sum(int p){return (p+1)*T1.sum(p)-T2.sum(p);}
-public:
-    void update(int l,int r,int x){add(l,x);add(r+1,-x);}  
-    X query(int l,int r){return sum(r)-sum(l-1);}    
-};
-}
-
 namespace BipartiteGraph{
 
 const int maxn=500;
@@ -1468,129 +1445,6 @@ int main(){ //same as bit graph
 }
 }
 
-namespace SEGT{
-const int MAXN=100010;
-
-ll sum[MAXN<<2], tadd[MAXN<<2], tmul[MAXN<<2], a[MAXN];
-ll n,m,p;
-#define lc u+u+1
-#define rc u+u+2
-void build(int u, int l, int r){
-	tmul[u]=1;
-	if (l==r-1){
-		sum[u]=a[l];
-		return;
-	}
-	int mid=l+r>>1;
-	build(lc,l,mid); build(rc,mid,r);
-	sum[u]=(sum[lc]+sum[rc])%p;
-}
-void upd(int u, int l, int r){
-	int mid=l+r>>1;
-	sum[lc]*=tmul[u]; sum[lc]+=(mid-l)*tadd[u]; sum[lc]%=p;
-	sum[rc]*=tmul[u]; sum[rc]+=(r-mid)*tadd[u]; sum[rc]%=p;
-	tadd[lc]*=tmul[u]; tadd[lc]+=tadd[u]; tadd[lc]%=p;
-	tmul[lc]*=tmul[u]; tmul[lc]%=p;
-	tadd[rc]*=tmul[u]; tadd[rc]+=tadd[u]; tadd[rc]%=p;
-	tmul[rc]*=tmul[u]; tmul[rc]%=p;
-	tadd[u]=0; tmul[u]=1;
-}
-void mul(int u, int l, int r, int cl, int cr, ll c){
-	if (cl<=l && cr>=r){
-		tadd[u]*=c; tadd[u]%=p;
-		tmul[u]*=c; tmul[u]%=p;
-		sum[u]*=c; sum[u]%=p;
-		return;
-	}
-	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
-	int mid=l+r>>1;
-	if (cl<mid) mul(lc,l,mid,cl,cr,c);
-	if (cr>mid) mul(rc,mid,r,cl,cr,c);
-	sum[u]=(sum[lc]+sum[rc])%p;
-}
-void add(int u, int l, int r, int cl, int cr, ll c){
-	if (cl<=l && cr>=r){
-		tadd[u]+=c; tadd[u]%=p;
-		sum[u]+=c*(r-l)%p; sum[u]%=p;
-		return;
-	}
-	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
-	int mid=l+r>>1;
-	if (cl<mid) add(lc,l,mid,cl,cr,c);
-	if (cr>mid) add(rc,mid,r,cl,cr,c);
-	sum[u]=(sum[lc]+sum[rc])%p;
-}
-ll ask(int u, int l, int r, int cl, int cr){
-	if (cl<=l && cr>=r) return sum[u];
-	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
-	int mid=l+r>>1;
-	ll ret=0;
-	if (cl<mid) ret+=ask(lc,l,mid,cl,cr);
-	if (cr>mid) ret+=ask(rc,mid,r,cl,cr);
-	return ret%p;
-}
-ll pointask(int u, int l, int r, int q){
-	if (l==r-1) return sum[u];
-	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
-	int mid=l+r>>1;
-	if (q<mid) return pointask(lc,l,mid,q);
-	return pointask(u,mid,r,q);
-}
-
-#undef lc
-#undef rc
-
-}
-
-
-namespace FSEGT{
-const int maxn=200010;
-int sum[maxn<<5], root[maxn], lc[maxn<<5], rc[maxn<<5],trcnt;
-int a[maxn],b[maxn];
-
-void build(int &u, int l, int r){
-	u=trcnt++;
-	if (l==r-1) return;
-	int mid=l+r>>1;
-	build(lc[u],l,mid); build(rc[u],mid,r);
-}
-int mod(int u, int l, int r, int c){
-	int v=trcnt++;
-	lc[v]=lc[u]; rc[v]=rc[u]; sum[v]=sum[u]+1;
-	if (l==r-1) return v;
-	int mid=l+r>>1;
-	if (c<mid) lc[v]=mod(lc[v],l,mid,c);
-	else rc[v]=mod(rc[v],mid,r,c);
-	return v;
-}
-int query(int u, int v, int l, int r, int q){
-	int mid=l+r>>1, x=sum[lc[v]]-sum[lc[u]];
-	if (l==r-1) return l;
-	if (x>=q) return query(lc[u],lc[v],l,mid,q);
-	return query(rc[u],rc[v],mid,r,q-x);
-}
-//ask: [l,r) kth number
-int main(){
-	int n,m;
-	cin>>n>>m;
-	for (int i=0;i<n;i++)
-		scanf("%d", a+i),b[i]=a[i];
-	sort(b,b+n);
-	int n1=unique(b,b+n)-b;
-	build(root[0],0,n1);
-	for (int i=0;i<n;i++){
-		int q=lower_bound(b,b+n1,a[i])-b;
-		root[i+1]=mod(root[i],0,n1,q);
-	}
-	for (int i=0;i<m;i++){
-		int l,r,q;
-		scanf("%d%d%d",&l,&r,&q);
-		printf("%d\n",b[query(root[l-1],root[r],0,n1,q)]);
-	}
-	return 0;
-}
-}
-
 namespace NetFlow{
 #define INF 0x3f3f3f3f
 const int maxn=1003,maxm=10003<<4;
@@ -1786,6 +1640,152 @@ int MCMF_dijk(){
 }
 
 #undef INF
+}
+
+namespace TreeArr{
+//WARN: index of tr[] statrs from 1
+const int maxn=100010;
+int tr[maxn]; int n;
+void add(int p, int x){for(;p<=n;p+=p&-p)tr[p]+=x;}
+ll sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}
+
+//section add and section sum version, section [l,r]
+template <typename X>    
+struct tree_array{    
+    struct tree_array_single{    
+        X tr[maxn];    
+        void add(int p,X x){for(;p<=n;p+=p&-p)tr[p]+=x;}    
+        X sum(int p){ll ret=0;for(;p;p-=p&-p)ret+=tr[p];return ret;}    
+    }T1,T2;    
+    void add(int p,X x){T1.add(p,x);T2.add(p,p*x);}      
+    X sum(int p){return (p+1)*T1.sum(p)-T2.sum(p);}
+public:
+    void update(int l,int r,int x){add(l,x);add(r+1,-x);}  
+    X query(int l,int r){return sum(r)-sum(l-1);}    
+};
+}
+
+namespace SEGT{
+const int MAXN=100010;
+
+ll sum[MAXN<<2], tadd[MAXN<<2], tmul[MAXN<<2], a[MAXN];
+ll n,m,p;
+#define lc u+u+1
+#define rc u+u+2
+void build(int u, int l, int r){
+	tmul[u]=1;
+	if (l==r-1){
+		sum[u]=a[l];
+		return;
+	}
+	int mid=l+r>>1;
+	build(lc,l,mid); build(rc,mid,r);
+	sum[u]=(sum[lc]+sum[rc])%p;
+}
+void upd(int u, int l, int r){
+	int mid=l+r>>1;
+	sum[lc]*=tmul[u]; sum[lc]+=(mid-l)*tadd[u]; sum[lc]%=p;
+	sum[rc]*=tmul[u]; sum[rc]+=(r-mid)*tadd[u]; sum[rc]%=p;
+	tadd[lc]*=tmul[u]; tadd[lc]+=tadd[u]; tadd[lc]%=p;
+	tmul[lc]*=tmul[u]; tmul[lc]%=p;
+	tadd[rc]*=tmul[u]; tadd[rc]+=tadd[u]; tadd[rc]%=p;
+	tmul[rc]*=tmul[u]; tmul[rc]%=p;
+	tadd[u]=0; tmul[u]=1;
+}
+void mul(int u, int l, int r, int cl, int cr, ll c){
+	if (cl<=l && cr>=r){
+		tadd[u]*=c; tadd[u]%=p;
+		tmul[u]*=c; tmul[u]%=p;
+		sum[u]*=c; sum[u]%=p;
+		return;
+	}
+	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
+	int mid=l+r>>1;
+	if (cl<mid) mul(lc,l,mid,cl,cr,c);
+	if (cr>mid) mul(rc,mid,r,cl,cr,c);
+	sum[u]=(sum[lc]+sum[rc])%p;
+}
+void add(int u, int l, int r, int cl, int cr, ll c){
+	if (cl<=l && cr>=r){
+		tadd[u]+=c; tadd[u]%=p;
+		sum[u]+=c*(r-l)%p; sum[u]%=p;
+		return;
+	}
+	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
+	int mid=l+r>>1;
+	if (cl<mid) add(lc,l,mid,cl,cr,c);
+	if (cr>mid) add(rc,mid,r,cl,cr,c);
+	sum[u]=(sum[lc]+sum[rc])%p;
+}
+ll ask(int u, int l, int r, int cl, int cr){
+	if (cl<=l && cr>=r) return sum[u];
+	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
+	int mid=l+r>>1;
+	ll ret=0;
+	if (cl<mid) ret+=ask(lc,l,mid,cl,cr);
+	if (cr>mid) ret+=ask(rc,mid,r,cl,cr);
+	return ret%p;
+}
+ll pointask(int u, int l, int r, int q){
+	if (l==r-1) return sum[u];
+	if (tadd[u] || tmul[u]!=1) upd(u,l,r);
+	int mid=l+r>>1;
+	if (q<mid) return pointask(lc,l,mid,q);
+	return pointask(u,mid,r,q);
+}
+
+#undef lc
+#undef rc
+
+}
+
+
+namespace FSEGT{
+const int maxn=200010;
+int sum[maxn<<5], root[maxn], lc[maxn<<5], rc[maxn<<5],trcnt;
+int a[maxn],b[maxn];
+
+void build(int &u, int l, int r){
+	u=trcnt++;
+	if (l==r-1) return;
+	int mid=l+r>>1;
+	build(lc[u],l,mid); build(rc[u],mid,r);
+}
+int mod(int u, int l, int r, int c){
+	int v=trcnt++;
+	lc[v]=lc[u]; rc[v]=rc[u]; sum[v]=sum[u]+1;
+	if (l==r-1) return v;
+	int mid=l+r>>1;
+	if (c<mid) lc[v]=mod(lc[v],l,mid,c);
+	else rc[v]=mod(rc[v],mid,r,c);
+	return v;
+}
+int query(int u, int v, int l, int r, int q){
+	int mid=l+r>>1, x=sum[lc[v]]-sum[lc[u]];
+	if (l==r-1) return l;
+	if (x>=q) return query(lc[u],lc[v],l,mid,q);
+	return query(rc[u],rc[v],mid,r,q-x);
+}
+//ask: [l,r) kth number
+int main(){
+	int n,m;
+	cin>>n>>m;
+	for (int i=0;i<n;i++)
+		scanf("%d", a+i),b[i]=a[i];
+	sort(b,b+n);
+	int n1=unique(b,b+n)-b;
+	build(root[0],0,n1);
+	for (int i=0;i<n;i++){
+		int q=lower_bound(b,b+n1,a[i])-b;
+		root[i+1]=mod(root[i],0,n1,q);
+	}
+	for (int i=0;i<m;i++){
+		int l,r,q;
+		scanf("%d%d%d",&l,&r,&q);
+		printf("%d\n",b[query(root[l-1],root[r],0,n1,q)]);
+	}
+	return 0;
+}
 }
 
 namespace StringHash{
@@ -2660,6 +2660,7 @@ int main(){ //reverse
 #undef lc
 #undef rc
 }
+
 namespace ST{
 const int maxn=100010;
 int st[30][maxn],a[maxn];
@@ -3115,6 +3116,70 @@ void process(){
 	}
 }
 }
+
+namespace DividePoint{
+const int maxn=20010,maxm=40010;
+
+struct Edge{
+	int to,nxt,c;
+}e[maxm];
+int ec,n,head[maxn];
+
+void added(int a, int b, int c){
+	e[++ec]={b,head[a],c};
+	head[a]=ec;
+	e[++ec]={a,head[b],c};
+	head[b]=ec;
+}
+
+int query[maxn],q,siz[maxn],ms[maxn];
+int MS,root,tn;
+bool vis[maxn];
+
+void dfs(int u,int fa, int len){
+	;//counter
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (v!=fa && !vis[v])
+			dfs(v,u,len+e[i].c);
+}
+int calc(int u, int x0){
+	dfs(u,u,x0);
+	return 0; //return count
+}
+void getrt(int u, int fa){
+	siz[u]=1; ms[u]=0;
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (v!=fa && !vis[v])
+			getrt(v,u),
+			siz[u]+=siz[v],ms[u]=max(ms[u],siz[v]);
+	ms[u]=max(ms[u],tn-siz[u]);
+	if (ms[u]<MS) root=u,MS=ms[u];
+}
+int ans=0;
+void divide(int u){
+	vis[u]=1;
+	ans+=calc(u,0);
+	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
+		if (!vis[v]){
+			ans-=calc(v,e[i].c); //sub invalid path
+			tn=siz[u]; root=0;
+			MS=0x3f3f3f3f; getrt(v,u);
+			divide(root);
+		}
+}
+int main(){
+	scanf("%d",&n);
+	for (int i=0;i<n-1;i++){
+		int a,b,c; scanf("%d%d%d",&a,&b,&c);
+		added(a,b,c);
+	}
+	tn=n; root=0; MS=0x3f3f3f3f; getrt(1,1); //first point divide
+	divide(root);
+	cout<<ans<<'\n';
+	return 0;
+}
+}
+
 //data structure of xor sum
 namespace XorBase{
 //we may need <bitset> sometimes
@@ -3534,7 +3599,7 @@ db poly_cirArea(point *p, int n, circle c){
 
 //average O(n)
 circle mincirCover(point *p0, int n){
-	static point p[maxn];
+	static point p[100010];
 	copy(p0,p0+n,p);
     random_shuffle(p,p+n);
     circle c(p[0],0);
@@ -4095,69 +4160,7 @@ bool same(Arr a, Arr b){
 }
 }
 
-namespace DividePoint{
-const int maxn=20010,maxm=40010;
-
-struct Edge{
-	int to,nxt,c;
-}e[maxm];
-int ec,n,head[maxn];
-
-void added(int a, int b, int c){
-	e[++ec]={b,head[a],c};
-	head[a]=ec;
-	e[++ec]={a,head[b],c};
-	head[b]=ec;
-}
-
-int query[maxn],q,siz[maxn],ms[maxn];
-int MS,root,tn;
-bool vis[maxn];
-
-void dfs(int u,int fa, int len){
-	;//counter
-	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
-		if (v!=fa && !vis[v])
-			dfs(v,u,len+e[i].c);
-}
-int calc(int u, int x0){
-	dfs(u,u,x0);
-	return 0; //return count
-}
-void getrt(int u, int fa){
-	siz[u]=1; ms[u]=0;
-	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
-		if (v!=fa && !vis[v])
-			getrt(v,u),
-			siz[u]+=siz[v],ms[u]=max(ms[u],siz[v]);
-	ms[u]=max(ms[u],tn-siz[u]);
-	if (ms[u]<MS) root=u,MS=ms[u];
-}
-int ans=0;
-void divide(int u){
-	vis[u]=1;
-	ans+=calc(u,0);
-	for (int i=head[u],v=e[i].to;i;i=e[i].nxt,v=e[i].to)
-		if (!vis[v]){
-			ans-=calc(v,e[i].c); //sub invalid path
-			tn=siz[u]; root=0;
-			MS=0x3f3f3f3f; getrt(v,u);
-			divide(root);
-		}
-}
-int main(){
-	scanf("%d",&n);
-	for (int i=0;i<n-1;i++){
-		int a,b,c; scanf("%d%d%d",&a,&b,&c);
-		added(a,b,c);
-	}
-	tn=n; root=0; MS=0x3f3f3f3f; getrt(1,1); //first point divide
-	divide(root);
-	cout<<ans<<'\n';
-	return 0;
-}
-}
-
 int main(){
 	return 0;
 }
+

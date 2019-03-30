@@ -1,7 +1,9 @@
 /*.*
 !/categroy.txt
-!/mod.cpp
+!/main.cpp
 !/.gitignore
 !/.gitattributes
 /ext/*.*
 !/ext/*.cpp
+/main/*.*
+!/main/*.cpp
