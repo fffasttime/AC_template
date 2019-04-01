@@ -125,4 +125,4 @@ int inv(int x, int p){
 	return qpow(x,p-2,p);
 }
 
-int main(){}
+//int main(){}
