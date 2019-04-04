@@ -36,12 +36,13 @@ struct vec{
 	db operator!() const{return sqrt(x*x+y*y);}
 	
 	bool operator<(Vec v) const{return x==v.x?y<v.y:x<v.x;}
+	//rotate countclockwise
+	vec std() const{return *this/!*this;}
 	vec rot(db rad) const{return vec(x*cos(rad)-y*sin(rad), x*sin(rad)+y*cos(rad));}
 	vec l90() const{return vec(-y,x);}
 	vec r90() const{return vec(y,-x);}
 	vec vert() const{ //l90 and standard
-		db l=!*this;
-		return vec(-y/l,x/l);
+		return (*this).l90().std();
 	}
 	friend ostream& operator<<(ostream &o, Vec v){
 		o<<v.x<<' '<<v.y;
@@ -50,7 +51,16 @@ struct vec{
 };
 typedef vec point;
 
-db angle(Vec a, Vec b){return atan2(fabs(a&b,a|b));}
+//cmp2 sort by angle without atan2
+// angle range [-pi,pi)
+bool cmp2(Vec a, Vec b){
+	int d1=sgn(a.y),d2=sgn(b.y);
+	if (d1^d2) return d1<d2;
+	if (d2==0) return a.x<b.x;
+	return (a&b)>0;
+}
+
+db angle(Vec a, Vec b){return fabs(atan2(a&b,a|b));}
 db area2(Point a, Point b, Point c){return b-a & c-a;}
 
 //Line: P=P0+t*vp
@@ -60,27 +70,31 @@ point lineInt(Point p, Vec vp, Point q, Vec vq){
 	db t=(vq & p-q)/(vp&vq);
 	return p+vp*t;
 }
-//distance of p to line A-B
-db lineDis(Point p, Point a, Point b){
-	vec v1=b-a;
-	return fabs(v1 & p-a)/!v1;
-}
-db segDis(Point p, Point a, Point b){
-	if (a==b) return !(a-p);
-	vec v1=b-a,v2=p-a,v3=p-b;
-	if ((v1|v2)<0) return !v2;
-	else if ((v1|v3)>0) return !v3;
-	else return fabs(v1&v2)/!v1;
-}
-point lineProj(Point p, Point a, Point b){
-	vec v=b-a;
+//point projection on line A+tV
+point lineProj(Point p, Point a, Vec v){
 	return a+v*(v|p-a)/(v|v);
+}
+//symmetric point of P about line A+tV
+point symmetric(Point p, Point a, Vec v){
+	return lineProj(p,a,v)*2-p;
+}
+//distance of p to line A+tV
+db lineDis(Point p, Point a, Vec v){
+	return fabs(v & p-a)/!v;
+}
+//distance of p to segment A+tV
+db segDis(Point p, Point a, Vec v){
+	if (a==b) return !(a-p);
+	vec v2=p-a,v3=p-a-v;
+	if ((v|v2)<0) return !v2;
+	else if ((v|v3)>0) return !v3;
+	return fabs(v&v2)/!v;
 }
 
 //point is on line
-bool onLine(Point p, Point a, Point b){return eq(p-a&b-a);}
+bool onLine(Point p, Point a, Point v){return eq(p-a&b-a);}
 //point on seg [a,b]
-bool onSeg(Point p, Point a, Point b){return onLine(p,a,b) && sgn(a-p|b-p)<=0;}
+bool onSeg(Point p, Point a, Point v){return onLine(p,a,b) && sgn(a-p|b-p)<=0;}
 
 //fast test before segment cross, 0 indicate the segment are not cross 
 bool rectCover(Point a1, Point a2, Point b1, Point b2){return 
@@ -89,9 +103,9 @@ bool rectCover(Point a1, Point a2, Point b1, Point b2){return
 	min(a1.y,a2.y)<=max(b1.y,b2.y)+eps &&
 	min(b1.y,b2.y)<=max(a1.y,a2.y)+eps;
 }
-//test if segment is cross
+//test if segment A1-A2 B1-B2 is cross
 int segCross(Point a1, Point a2, Point b1, Point b2){
-	if (!rectCover(a1,a2,b1,b2)) return 0;
+	if (!rectCover(a1,a2,b1,b2)) return 0; //not necessary
 	db c1=sgn(a2-a1&b1-a1), c2=sgn(a2-a1&b2-a1);
 	db c3=sgn(b2-b1&a1-b1), c4=sgn(b2-b1&a2-b1);
 	if (c1*c2>0 || c3*c4>0) //no cross
@@ -102,20 +116,44 @@ int segCross(Point a1, Point a2, Point b1, Point b2){
 	return 2; //a point on line
 }
 
+//#define const line& Line
+
+struct line{
+	point p; vec v;
+	line(){}
+	line(Point p, db ang):p(p),v(ang){}
+	//ax+by+c=0
+	line(db a, db b, db c){
+		if (eq(b)) p=point(-c/a,0), v=vec(0,1);
+		else p=point(0,-c/b),v=vec(1,-a/b);
+	}
+	line(Point p, Vec v):p(p),v(v){}
+	bool operator<(const Line &L) const{return v.ang()<L.v.ang();}
+};
+
+
 struct circle{
 	point c;
 	double r;
 	circle(Point c, db r):c(c),r(r){}
 	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
+	//circle on point P1P2P3
 	circle(Point p1, Point p2, Point p3){
 		c=(p1+lineInt(p2,(p2-p1).l90(),p3,(p3-p1).l90()))/2;
 		r=!(p1-c);
 	}
+	//inscribed cricle of triangle P1P2P3
+	circle(Point p1, Point p2, Point p3, bool _){
+		vec u=(p1-p2).std(), v=(p3-p2).std(), w=(p1-p3).std();
+		c=lineInt(p2,u+v,p3,w-v);
+		r=lineDis(c,p2,v);
+	}
 	point angle(db theta){return c+point(theta)*r;}
 };
 
+
 //point in or on circle
-bool inCir(point p, circle c){return sgn(!(c.c-p)-c.r)<=0;}
+bool inCir(Point p, circle c){return sgn(!(c.c-p)-c.r)<=0;}
 
 //return -1,0,1,2, ans[2]
 int cirCross(circle A, circle B, point *ans){
@@ -128,11 +166,11 @@ int cirCross(circle A, circle B, point *ans){
 	db a=(B.c-A.c).ang();
 	db da=acos((A.r*A.r+d*d-B.r*B.r)/(2*A.r*d));
 	ans[0]=A.angle(a-da),ans[1]=A.angle(a+da);
-	if (ans[0]==ans[1]) return 1; //tang
+	if (eq(a)) return 1; //tang
 	return 2; //normal inter
 }
 
-//get tangent lines from point p
+//get tangent points on circle from point p
 //return  ans[2] : tangent point 
 int cirTang(Point p, circle c, point *ans){
 	db d=!(c.c-p);
@@ -215,6 +253,58 @@ int segInt(Point a, Point b, circle c, point *ans){
 	return cnt;
 }
 
+//UVA12304 get circles with radius r and other conditions
+//circle passing A and B with radius r
+// return ans[2]: center circle
+int getCir(Point a, Point b, db r, point *ans){
+	//circle A(a,r),B(b,r); return cirCross(A,B,r); //another implement
+	db d=!(a-b)/2;
+	if (sgn(d-r)<0) return 0;
+	vec v=(b-a)/2;
+	if (eq(d-r)) return ans[0]=a+v,1;
+	ans[0]=a+v+v.vert()*sqrt(r*r-d*d);
+	ans[1]=a+v-v.vert()*sqrt(r*r-d*d);
+	return 2;
+}
+//circle with radius r passing point A and tangent with line P
+int getCir(Point a, Point p, vec vp, db r, point *ans){
+	if (eq(vp&a-p)){ //special judge point A on line P
+		ans[0]=p+vp.vert()*r;
+		ans[1]=p-vp.vert()*r;
+		return 2;
+	}
+	//implement by line-cir-intersection 
+	//point p1=p+vp.vert()*sgn(vp&a-p)*r; 
+	//return lineInt(p1,p1+vp,circle(a,r));
+	//independent implement
+	point p0=lineProj(a,p,vp); db d=!(p-p0);
+	if (sgn(2*r-d)<0) return 0;
+	if (eq(2*r-d)) return ans[0]=(a+p0)/2,1;
+	point p1=p0+vp.vert()*sgn(vp&a-p)*r;
+	d-=r; d=sqrt(r*r-d*d);
+	vp=vp.std()*d;
+	ans[0]=p1+vp;
+	ans[1]=p1-vp;
+	return 2;
+}
+//circle with radius r and tangent with line P and Q
+int getCir(point p, vec vp, point q, vec vq, db r, point *ans){
+	vec mvp=vp.vert()*r; //move dir
+	vec mvq=vq.vert()*r;
+	ans[0]=lineInt(p-mvp,vp,q-mvq,vq);
+	ans[1]=lineInt(p-mvp,vp,q+mvq,vq);
+	ans[2]=lineInt(p+mvp,vp,q-mvq,vq);
+	ans[3]=lineInt(p+mvp,vp,q+mvq,vq);
+	return 4;
+}
+//circle with radius r and tangent with circle c1 and c2
+int getCir(circle c1, circle c2, db r, point *ans){
+	return cirCross(circle(c1.c,c1.r+r),circle(c2.c,c2.r+r),ans);
+}
+
+
+//--poly--
+
 //point is in or on polygon
 //return  1(in), 0(out), -1(on border)
 int inPoly(point p, point *poly, int n){
@@ -231,8 +321,6 @@ int inPoly(point p, point *poly, int n){
 	return w!=0;
 }
 //test segment strict in poly, 0 out/border, 1 in
-//if point at border regard as in poly, 
-// the condition is (any segCross(...)==1) && (online<2 || the line short an epsilon still in poly)   
 bool inPoly(point p1, point p2, point *poly, int n){
 	if (!inPoly(p1,poly,n) || !inPoly(p2,poly,n)) return 0;
 	for (int i=0;i<n;i++)
@@ -240,18 +328,42 @@ bool inPoly(point p1, point p2, point *poly, int n){
 			return 0;
 	return 1;
 }
+//point at border regard as in poly
+const db epr=1e-5; //[!] epr should larger than eps*tan(angle(segment and poly-edge))
+bool inPoly2(point p1, point p2, point *poly, int n){
+	if (inPoly(p1*epr+p2*(1-epr),poly,n)==0 || inPoly(p2*epr+p1*(1-epr),poly,n)==0) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n])==1)
+			return 0;
+	return 1;
+}
+bool outPoly(point p1, point p2, point *poly, int n){
+	if (inPoly(p1,poly,n) || inPoly(p2,poly,n)) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n]))
+			return 0;
+	return 1;
+}
+bool outPoly2(point p1, point p2, point *poly, int n){
+	if (inPoly(p1*epr+p2*(1-epr),poly,n)==1 || inPoly(p2*epr+p1*(1-epr),poly,n)==1) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n])==1)
+			return 0;
+	return 1;
+}
 
-// [!] Require simple polygon, the result will be strange
+// [!] Require simple polygon, or the result will be strange
 db polyArea(point *p, int n){
 	db sum=0;
 	for (int i=1;i<n-1;i++)
 		sum+=area2(p[0],p[i+1],p[i]);
 	return fabs(sum)/2;
 }
-// convex hull, Andrew algo
+//convex hull, Andrew algo
 // return  ans[m]
 int convex(point *p, int n, point *ans){
 	sort(p,p+n);
+	n=unique(p,p+n)-p;
 	int m=0;
 	for (int i=0;i<n;i++){
 		while (m>1 && (ans[m-1]-ans[m-2]&p[i]-ans[m-2])<=0) m--;
@@ -266,13 +378,6 @@ int convex(point *p, int n, point *ans){
 	return m;
 }
 
-struct Line{
-	point p; vec v;
-	Line(){}
-	Line(Point p, Vec v):p(p),v(v){}
-	bool operator<(const Line &L) const{return v.ang()<L.v.ang();}
-};
-
 //line l is left than point p
 bool onleft(Line &l, point p){return sgn(l.v&p-l.p)>0;}
 const int maxp=1001;
@@ -282,7 +387,7 @@ point T[maxp<<1]; //temp ans
 //[!] The result area can't be unlimited.
 //You can add 'inf' edges to make sure that. Then
 // if a result point is 'inf' then the real result is unlimited.
-int halfplaneInt(Line *l, int n, point *ans){
+int halfplaneInt(line *l, int n, point *ans){
 	sort(l,l+n); //[!] This operation changed input
 	int head=0,tail=0;
 	Q[0]=l[0];
@@ -308,13 +413,7 @@ int halfplaneInt(Line *l, int n, point *ans){
 //---complex---
 
 //sector a~b of radius r
-db secArea(point a, point b, db r){
-	db ang=a.ang()-b.ang();
-	while (sgn(ang)<=0) ang+=2*PI;
-	while (sgn(ang-2*PI)>0) ang-=2*PI;
-	ang=min(ang, 2*PI-ang);
-	return r*r*ang/2;
-}
+db secArea(point a, point b, db r){return r*r*angle(a,b)/2;}
 db triArea(point p1, point p2){return fabs(p1&p2)/2;}
 //intersection area of circle C and triangle P1-P2-C
 db tri_cirArea(point p1, point p2, circle c){
@@ -322,12 +421,12 @@ db tri_cirArea(point p1, point p2, circle c){
 	p1=p1-c.c; p2=p2-c.c;
 	c.c=vec(0,0);
 	point p[2];
-	if (sgn(!p1-r)<0){
+	if (sgn(!p1-r)<0){ //p1 in circle
 		if (sgn(!p2-r)<0) return triArea(p1,p2);
 		segInt(p1,p2,c,p);
 		return triArea(p1,p[0]) + secArea(p[0],p2,r);
 	}
-	if (sgn(!p2-r)<0){
+	if (sgn(!p2-r)<0){ //p2 in circle
 		segInt(p1,p2,c,p);
 		return secArea(p1,p[0],r) + triArea(p[0],p2);
 	}
@@ -364,6 +463,8 @@ circle mincirCover(point *p, int n){
     return c;
 }
 
+//--rotating stuck--
+
 const int maxn=100010;
 //max dis point pair on poly
 // farthest point pair on plane
@@ -386,7 +487,7 @@ db polyWidth(point *p0, int n0){
 	int opp=1; db ans=1e10;
 	for (int i=0;i<n;i++){
 		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
-		ans=min(ans, lineDis(p[opp],p[i],p[i+1]));
+		ans=min(ans, lineDis(p[opp],p[i],p[i+1]-p[i]));
 	}
 	return ans;
 }
@@ -415,10 +516,10 @@ void test(){
 	cout<<angle(c,d)<<" expect "<<c.ang()-d.ang()<<'\n';
 	cout<<lineInt(c,vc,d,vd)<<" expect 1 2\n";
 	cout<<lineInt(d,vd,c,vc)<<" expect 1 2\n";
-	cout<<lineDis(point(0,0),d,vec(0,2.5))<<" expect 2.23607\n";
-	cout<<segDis(point(0,0),d,vec(0,2.5))<<" expect 2.23607\n";
-	cout<<segDis(point(0,5),d,vec(0,2.5))<<" expect 2.5\n";
-	cout<<lineProj(point(0,0),d,vec(4,0))<<" expect 2 2\n";
+	cout<<lineDis(point(0,0),d,vec(0,2.5)-d)<<" expect 2.23607\n";
+	cout<<segDis(point(0,0),d,vec(0,2.5)-d)<<" expect 2.23607\n";
+	cout<<segDis(point(0,5),d,vec(0,2.5)-d)<<" expect 2.5\n";
+	cout<<lineProj(point(0,0),d,vec(4,0)-d)<<" expect 2 2\n";
 	
 	cout<<onLine(point(2,2),d,vec(4,0))<<" expect 1\n";
 	cout<<onSeg(point(2,2),d,vec(4,0))<<" expect 0\n";
@@ -508,5 +609,5 @@ void test(){
 }
 }
 int main(){
-	CalcGeo::test();
+	test();
 }
