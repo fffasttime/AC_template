@@ -19,7 +19,7 @@ struct vec{
 	vec():x(0),y(0){}
 	vec(db x, db y):x(x),y(y){}
 	vec(db theta):x(cos(theta)),y(sin(theta)){}
-	
+
 	bool operator==(Vec v) const{return eq(x-v.x) && eq(y-v.y);}
 	db ang() const{return atan2(y,x);}
 	
@@ -61,7 +61,11 @@ bool cmp2(Vec a, Vec b){
 }
 
 db angle(Vec a, Vec b){return fabs(atan2(a&b,a|b));}
-db area2(Point a, Point b, Point c){return b-a & c-a;}
+db cross(Point a, Point b, Point c){return b-a & c-a;}
+db dot(Point a, Point b, Point c){return b-a | c-a;}
+
+//cosine theory
+db angle(db a, db b, db c){return acos((a*a+b*b-c*c)/(2*a*b));}
 
 //Line: P=P0+t*vp
 // Segment: 0<=t<=1
@@ -84,17 +88,22 @@ db lineDis(Point p, Point a, Vec v){
 }
 //distance of p to segment A+tV
 db segDis(Point p, Point a, Vec v){
-	if (a==b) return !(a-p);
+	if (eq(!v)) return !(a-p); //a point
 	vec v2=p-a,v3=p-a-v;
 	if ((v|v2)<0) return !v2;
 	else if ((v|v3)>0) return !v3;
 	return fabs(v&v2)/!v;
 }
+//distance of seg A-B and seg C-D
+db segDis(Point a, Point b, Point c, Point d){
+	vec u=b-a, v=d-c;
+	return min(min(segDis(c,a,u),segDis(d,a,u)),min(segDis(a,c,v),segDis(b,c,v)));
+}
 
 //point is on line
-bool onLine(Point p, Point a, Point v){return eq(p-a&b-a);}
+bool onLine(Point p, Point a, Point b){return eq(p-a&b-a);}
 //point on seg [a,b]
-bool onSeg(Point p, Point a, Point v){return onLine(p,a,b) && sgn(a-p|b-p)<=0;}
+bool onSeg(Point p, Point a, Point b){return onLine(p,a,b) && sgn(a-p|b-p)<=0;}
 
 //fast test before segment cross, 0 indicate the segment are not cross 
 bool rectCover(Point a1, Point a2, Point b1, Point b2){return 
@@ -128,13 +137,14 @@ struct line{
 		else p=point(0,-c/b),v=vec(1,-a/b);
 	}
 	line(Point p, Vec v):p(p),v(v){}
-	bool operator<(const Line &L) const{return v.ang()<L.v.ang();}
+	bool operator<(const line &l) const{return v.ang()<l.v.ang();}
 };
 
 
 struct circle{
 	point c;
 	double r;
+	circle(){}
 	circle(Point c, db r):c(c),r(r){}
 	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
 	//circle on point P1P2P3
@@ -149,6 +159,8 @@ struct circle{
 		r=lineDis(c,p2,v);
 	}
 	point angle(db theta){return c+point(theta)*r;}
+
+	bool operator==(const circle &v) const{return c==v.c && eq(r-v.r);}
 };
 
 
@@ -156,15 +168,17 @@ struct circle{
 bool inCir(Point p, circle c){return sgn(!(c.c-p)-c.r)<=0;}
 
 //return -1,0,1,2, ans[2]
+//!-- test inside tang
 int cirCross(circle A, circle B, point *ans){
 	db d=!(A.c-B.c);
 	if (eq(d)){
 		if (eq(A.r-B.r)) return -1; //same circle
 		return 0; //same center
 	}
+	if (sgn(d-fabs(A.r-B.r))<0) return 0; //inside
 	if (sgn(A.r+B.r-d)<0) return 0; //too far
 	db a=(B.c-A.c).ang();
-	db da=acos((A.r*A.r+d*d-B.r*B.r)/(2*A.r*d));
+	db da=angle(A.r,d,B.r);
 	ans[0]=A.angle(a-da),ans[1]=A.angle(a+da);
 	if (eq(a)) return 1; //tang
 	return 2; //normal inter
@@ -251,6 +265,19 @@ int segInt(Point a, Point b, circle c, point *ans){
 	if (sgn(t1)>=0 && sgn(t1-1)<=0) ans[cnt++]=a1;
 	if (sgn(t2)>=0 && sgn(t2-1)<=0) ans[cnt++]=a2;
 	return cnt;
+}
+
+//insection area of two circle a and b
+//!-- test
+db cirIntArea(circle a, circle b){
+	db d=!(a.c-b.c);
+	if (sgn(d-a.r-b.r)>=0) return 0; // too far
+	if (sgn(d-fabs(a.r-b.r)<=0)) return PI*min(a.r,b.r)*min(a.r,b.r); //inside
+	db hf=(a.r+b.r+d)/2;
+	db s=-2*sqrt(hf*(hf-a.r)*(hf-b.r)*(hf-d));
+	s+=angle(a.r,d,b.r)*a.r*a.r;
+	s+=angle(b.r,d,a.r)*b.r*b.r;
+	return s;
 }
 
 //UVA12304 get circles with radius r and other conditions
@@ -356,9 +383,17 @@ bool outPoly2(point p1, point p2, point *poly, int n){
 db polyArea(point *p, int n){
 	db sum=0;
 	for (int i=1;i<n-1;i++)
-		sum+=area2(p[0],p[i+1],p[i]);
+		sum+=cross(p[0],p[i+1],p[i]);
 	return fabs(sum)/2;
 }
+
+point polyBaryCenter(point *p, int n){
+	point ret(0,0);
+	for (int i=1;i<n-1;i++)
+		ret=ret+(p[0]+p[i]+p[i+1])/3;
+	return ret;
+}
+
 //convex hull, Andrew algo
 // return  ans[m]
 int convex(point *p, int n, point *ans){
@@ -378,36 +413,155 @@ int convex(point *p, int n, point *ans){
 	return m;
 }
 
-//line l is left than point p
-bool onleft(Line &l, point p){return sgn(l.v&p-l.p)>0;}
+//test point P strictly in convex polygon, o(nlogn)
+bool inConvex(point *p, int n, point q){ //require countclockwise convex hull
+	if (sgn(cross(p[0],q,p[1]))>=0 || sgn(cross(p[0],p[n-1],q))>=0) return 0;
+	int l=1,r=n-1;
+	while (l<r-1){
+		int m=l+r>>1;
+		if (cross(p[0],p[m],q)>0) l=m;
+		else r=m;
+	}
+	return sgn(corss(p[l],p[r],q))>0;
+}
+
+//cut convex polygon by line A, return right side of remain poly
+int convexCut(point *p, int n, point a, vec v, point *ans){
+	int c=0;
+	for (int i=0;i<n;i++){
+		int d1=sgn(v&p[i]-a);
+		int d2=sgn(v&p[(i+1)%n]-a);
+		if (d1>=0) ans[c++]=p[i];
+		if (d1*d2<0) ans[c++]=lineInt(a,v,p[i],p[(i+1)%n]-p[i]); //cut
+	}
+	return c;
+}
+
+//weather point p is lefter than line l
+bool onleft(point p, const line &l){return sgn(l.v&p-l.p)>0;}
 const int maxp=1001;
-Line Q[maxp<<1]; //deque
-point T[maxp<<1]; //temp ans
-//intersection of right side half plane, return clockwise polygon point
+line Q[maxp<<1]; //deque of lines
+point T[maxp<<1]; //deque of points(result)
+//intersection of left side half plane, return countclockwise polygon point
 //[!] The result area can't be unlimited.
-//You can add 'inf' edges to make sure that. Then
-// if a result point is 'inf' then the real result is unlimited.
 int halfplaneInt(line *l, int n, point *ans){
 	sort(l,l+n); //[!] This operation changed input
-	int head=0,tail=0;
+	int head=0,tail=0; //rangeof Q:[head,tail] ; range of T: [head, tail)
 	Q[0]=l[0];
 	for (int i=1;i<n;i++){
-		while (head<tail && !onleft(l[i],T[tail-1])) tail--;
-		while (head<tail && !onleft(l[i],T[head])) head++;
+		while (head<tail && !onleft(T[tail-1],l[i])) tail--;
+		while (head<tail && !onleft(T[head],l[i])) head++;
 		Q[++tail]=l[i];
-		if (eq(Q[tail].v&Q[tail-1].v)){
+		if (eq(Q[tail].v&Q[tail-1].v)){ //same direction
 			--tail;
-			if (onleft(Q[tail],l[i].p)) Q[tail]=l[i];
+			if (onleft(l[i].p,l[i])) Q[tail]=l[i]; //replace righter line
 		}
-		if (head<tail) 
+		if (head<tail) //get point
 			T[tail-1]=lineInt(Q[tail-1].p,Q[tail-1].v,Q[tail].p,Q[tail].v);		
 	}
-	while (head<tail && !onleft(Q[head],T[tail])) tail--; 
+	while (head<tail && !onleft(T[tail-1],Q[head])) tail--; 
 	if (head>=tail-1) return 0;  //m<3, no available area
 	T[tail]=lineInt(Q[head].p,Q[head].v,Q[tail].p,Q[tail].v); //head cross tail
 	int m=0;
 	for (int i=head;i<=tail;i++) ans[m++]=T[i];
 	return m;
+}
+//half plane intersection with unlimted space judge
+int halfplaneInt_(line *l, int n, point *ans){ //[!] array l should have 4 extra space
+	l[n]=line(point(-inf,-inf),vec(1,0));
+	l[n+1]=line(point(inf,-inf),vec(0,1));
+	l[n+2]=line(point(inf,inf),vec(-1,0));
+	l[n+3]=line(point(-inf,inf),vec(0,-1));
+	int ret=halfplaneInt(l,n+4,ans);
+	for (int i=0;i<ret;i++)
+		if (fabs(ans[i].x)>inf/2 || fabs(ans[i].y)>inf/2)
+			return -1; //unlimited
+	return ret;
+}
+
+//--rotating stuck--
+
+const int maxn=100010;
+//max dis point pair on poly
+// (farthest point pair on plane)
+db polyDiam(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	p[n]=p[0];
+	int opp=1; db ans=!(p[0]-p[1]);
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[opp+1])>cross(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=max(ans, max(!(p[opp]-p[i]),!(p[opp]-p[i+1])));
+	}
+	return ans;
+}
+//min dis between parallel lines clip polygon
+db polyWidth(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	p[n]=p[0];
+	int opp=1; db ans=1e10;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[opp+1])>cross(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=min(ans, lineDis(p[opp],p[i],p[i+1]-p[i]));
+	}
+	return ans;
+}
+//min rectangle area cover polygon
+db minRectCover(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	if (n<3) return 0;
+	p[n]=p[0];
+	db ans=-1;
+	int h=1,r=1,l;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[h+1])-cross(p[i],p[i+1],p[h])>=0) h=(h+1)%n; //farest
+		while (dot(p[i],p[i+1],p[r+1])-dot(p[i],p[i+1],p[r])>=0) r=(r+1)%n; //rightest
+		if (i==0) l=h;
+		while (dot(p[i],p[i+1],p[l+1])-dot(p[i],p[i+1],p[l])>=0) l=(l+1)%n; //leftest
+		db t=p[i+1]-p[i]|p[i+1]-p[i];
+		db s=cross(p[i],p[i+1],p[h])*(dot(p[i],p[i+1],p[r])-dot(p[i],p[i+1],p[l]))/t; //rect area
+		//min circumference of rectangle
+		//db c=2*(cross(p[i],p[i+1],p[h])+dot(p[i],p[i+1],p[r])-dot(p[i],p[i+1],p[l]))/!(p[i+1]-p[i]);
+		if (ans<0 || ans>s) ans=s;
+	}
+	return ans;
+}
+//minimum convex hull distanse (actually what support vector machine do on plane)
+//[!] require non-cross countclockwise convex hull
+db minConvexDis(point *p, int n, point *q, int m){ 
+	p[n]=p[0]; q[n]=q[0];
+	db ans=inf; int r=0;
+	for (int i=1;i<m;i++)
+		if (cross(p[0],p[1],q[i])>corss(p[0],p[1],q[r]))
+			r=i;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
+			r=(r+1)%m;
+			ans=min(ans,segDis(p[i],p[i+1],q[r],q[r+1]));
+		}
+	}
+	return ans;
+}
+//inner common tangent line of two convex hull, O(n+m)
+//return one of tangent line (postion in input array)
+//[!] require non-corss countclockwise convex hull)
+pair<int,int> convexInnerTang(point *p, int n, point *q, int m){ 
+	p[n]=p[0]; q[n]=q[0];
+	int r=0;
+	for (int i=1;i<m;i++)
+		if (cross(p[0],p[1],q[i])>corss(p[0],p[1],q[r]))
+			r=i;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
+			r=(r+1)%m;
+			if (cross(p[(i+n-1)%n],p[i],q[r])>=0 && cross(p[i],p[i+1],q[r])<0 &&
+				cross(q[(r+m-1)%m],q[r],p[i])>=0 && cross(q[r],q[r+1],p[i])<0) //change here to get another tangent line
+				return {i,r};
+		}
+	}
+	throw;
 }
 
 //---complex---
@@ -463,33 +617,66 @@ circle mincirCover(point *p, int n){
     return c;
 }
 
-//--rotating stuck--
 
-const int maxn=100010;
-//max dis point pair on poly
-// farthest point pair on plane
-db polyDiam(point *p0, int n0){
-	static point p[maxn];
-	int n=convex(p0,n0,p); //[!] p0 changed
-	p[n]=p[0];
-	int opp=1; db ans=!(p[0]-p[1]);
-	for (int i=0;i<n;i++){
-		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
-		ans=max(ans, max(!(p[opp]-p[i]),!(p[opp]-p[i+1])));
+//union area of circles
+namespace Circles{
+	const int N=1010; //O(n^2log(n))
+	circle c[N];
+	db ans[N],pre[N];
+	int n;
+	//remove inside or same circles
+	void init(){ //[!] c[N] changed
+		sort(c,c+n,[](const circle &a, const circle &b){return a.c==b.c?a.r<b.r:a.c<b.c;});
+		n=unique(c,c+n)-c; //use circle::operator==
 	}
-	return ans;
-}
-//min dis between parallel lines clip polygon
-db polyWidth(point *p0, int n0){
-	static point p[maxn];
-	int n=convex(p0,n0,p); //[!] p0 changed
-	p[n]=p[0];
-	int opp=1; db ans=1e10;
-	for (int i=0;i<n;i++){
-		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
-		ans=min(ans, lineDis(p[opp],p[i],p[i+1]-p[i]));
+
+	db arcarea(db rad, db r){return 0.5*r*r*(rad-sin(rad));}
+	//union area of circles
+	// ans[1] is union area
+	// ans[i]-ans[i+1] is k times intersection area; [!] the circles should be unique
+	db areaunion(){
+		memset(ans,0,sizeof ans);
+		vector<pair<db,int>> v; //int 1: start of section | -1: end of section
+		init(); //delete inside; [!] should NOT init() when get k-times intersection
+		for (int i=0;i<n;i++){
+			v.clear();
+			v.emplace_back(-PI,1); //default [-PI,PI] full circle
+			v.emplace_back(PI,-1); 
+			for (int j=0;j<n;j++) //label arc secions
+				if (i^j){
+					point q=c[j].c-c[i].c;
+					db d=!q, x=c[i].r, y=c[j].r;
+					if (sgn(d+x-y)<=0){ //cover by circle[j]
+						v.emplace_back(-PI,1);
+						v.emplace_back(PI,-1);
+						continue;
+					}
+					if (sgn(d-x+y)<=0) continue; //cover circle[j]
+					if (sgn(d-x-y)>0) continue; //too far
+					db base=q.ang(), ang=angle(x,d,y);
+					db a0=base-ang;	if (sgn(a0+PI)<0) a0+=2*PI;
+					db a1=base+ang; if (sgn(a1-PI)>0) a1-=2*PI;
+					v.emplace_back(a0,1);
+					if (sgn(a0-a1)>0){ //arc across 180 degree
+						v.emplace_back(PI,-1);
+						v.emplace_back(-PI,1);
+					}
+					v.emplace_back(a1,-1);
+				}
+			sort(v.begin(),v.end());
+			int cur=0;
+			for (auto &a:v){ //point
+				if (cur && sgn(a.first-pre[cur])){
+					ans[cur]+=arcarea(a.first-pre[cur],c[i].r); //arcarea
+					ans[cur]+=(c[i].angle(pre[cur])&c[i].angle(a.first))/2; //piece of center polygon area(signed)
+				}
+				cur+=a.second;
+				pre[cur]=a.first;
+			}
+		}
+		//for (int i=1;i<n;i++)
+		//	ans[i]-=ans[i+1];
 	}
-	return ans;
 }
 
 void test(){
@@ -606,8 +793,20 @@ void test(){
 	cout<<mincirCover(polyt,4).r<<" expect "<<circle(poly[0],poly[1],poly[3]).r<<'\n';
 	
 	cout<<poly_cirArea(poly, 4, {{0,0},1})<<" expect ???\n";
+
+	{
+	using namespace Circles;
+	n=2;
+	Circles::c[0]=circle(vec(0,0),1);
+	Circles::c[1]=circle(vec(0,1),1);
+	areaunion();
+	cout<<Circles::ans[1]<<" expect 5.048156\n";
+	}
 }
 }
+#include <iomanip>
+using namespace std;
 int main(){
+	using namespace CalcGeo;
 	test();
 }
