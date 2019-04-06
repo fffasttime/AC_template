@@ -75,21 +75,21 @@ point lineInt(Point p, Vec vp, Point q, Vec vq){
 	return p+vp*t;
 }
 //point projection on line A+tV
-point lineProj(Point p, Point a, Vec v){
-	return a+v*(v|p-a)/(v|v);
+point lineProj(Point p, Point s, Vec v){
+	return s+v*(v|p-a)/(v|v);
 }
 //symmetric point of P about line A+tV
-point symmetric(Point p, Point a, Vec v){
-	return lineProj(p,a,v)*2-p;
+point symmetric(Point p, Point s, Vec v){
+	return lineProj(p,s,v)*2-p;
 }
 //distance of p to line A+tV
-db lineDis(Point p, Point a, Vec v){
-	return fabs(v & p-a)/!v;
+db lineDis(Point p, Point s, Vec v){
+	return fabs(v & p-s)/!v;
 }
 //distance of p to segment A+tV
-db segDis(Point p, Point a, Vec v){
-	if (eq(!v)) return !(a-p); //a point
-	vec v2=p-a,v3=p-a-v;
+db segDis(Point p, Point s, Vec v){
+	if (eq(!v)) return !(s-p); //a point
+	vec v2=p-s,v3=p-a-v;
 	if ((v|v2)<0) return !v2;
 	else if ((v|v3)>0) return !v3;
 	return fabs(v&v2)/!v;
@@ -147,8 +147,8 @@ struct circle{
 	circle(){}
 	circle(Point c, db r):c(c),r(r){}
 	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
-	//circle on point P1P2P3
-	circle(Point p1, Point p2, Point p3){
+	//circle passing point P1P2P3
+	circle(Point p1, Point p2, Point p3){ //[!] p1,p2,p3 should not on same line
 		c=(p1+lineInt(p2,(p2-p1).l90(),p3,(p3-p1).l90()))/2;
 		r=!(p1-c);
 	}
