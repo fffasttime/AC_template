@@ -45,7 +45,7 @@ struct vec{
 		return (*this).l90().std();
 	}
 	friend ostream& operator<<(ostream &o, Vec v){
-		o<<v.x<<' '<<v.y;
+		o<<v.x<<','<<v.y;
 		return o;
 	}
 };
@@ -76,7 +76,7 @@ point lineInt(Point p, Vec vp, Point q, Vec vq){
 }
 //point projection on line A+tV
 point lineProj(Point p, Point s, Vec v){
-	return s+v*(v|p-a)/(v|v);
+	return s+v*(v|p-s)/(v|v);
 }
 //symmetric point of P about line A+tV
 point symmetric(Point p, Point s, Vec v){
@@ -89,7 +89,7 @@ db lineDis(Point p, Point s, Vec v){
 //distance of p to segment A+tV
 db segDis(Point p, Point s, Vec v){
 	if (eq(!v)) return !(s-p); //a point
-	vec v2=p-s,v3=p-a-v;
+	vec v2=p-s,v3=p-s-v;
 	if ((v|v2)<0) return !v2;
 	else if ((v|v3)>0) return !v3;
 	return fabs(v&v2)/!v;
@@ -329,6 +329,21 @@ int getCir(circle c1, circle c2, db r, point *ans){
 	return cirCross(circle(c1.c,c1.r+r),circle(c2.c,c2.r+r),ans);
 }
 
+//inverse circle C by  circle P with radius 1
+circle inverseCir(Point p, circle c){
+	db d=!(c.c-p);
+	if (eq(c.r-d)) //get a line
+		return circle(vec(inf,inf),inf);
+	db d2=1/(d+c.r);
+	db d1=1/(d-c.r);
+	vec v=c.c-p; v=v/!v;
+	return circle(p+v*(d1+d2)/2,(d1-d2)/2);
+}
+circle inverseCir(Point p, Point s, Vec v){
+	point t=lineProj(p,s,v);
+	db r=0.5/!(t-p); //radius
+	return circle(p+(t-p)/!(t-p)*r,r);
+}
 
 //--poly--
 
@@ -422,7 +437,7 @@ bool inConvex(point *p, int n, point q){ //require countclockwise convex hull
 		if (cross(p[0],p[m],q)>0) l=m;
 		else r=m;
 	}
-	return sgn(corss(p[l],p[r],q))>0;
+	return sgn(cross(p[l],p[r],q))>0;
 }
 
 //cut convex polygon by line A, return right side of remain poly
@@ -534,7 +549,7 @@ db minConvexDis(point *p, int n, point *q, int m){
 	p[n]=p[0]; q[n]=q[0];
 	db ans=inf; int r=0;
 	for (int i=1;i<m;i++)
-		if (cross(p[0],p[1],q[i])>corss(p[0],p[1],q[r]))
+		if (cross(p[0],p[1],q[i])>cross(p[0],p[1],q[r]))
 			r=i;
 	for (int i=0;i<n;i++){
 		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
@@ -551,7 +566,7 @@ pair<int,int> convexInnerTang(point *p, int n, point *q, int m){
 	p[n]=p[0]; q[n]=q[0];
 	int r=0;
 	for (int i=1;i<m;i++)
-		if (cross(p[0],p[1],q[i])>corss(p[0],p[1],q[r]))
+		if (cross(p[0],p[1],q[i])>cross(p[0],p[1],q[r]))
 			r=i;
 	for (int i=0;i<n;i++){
 		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
