@@ -149,14 +149,16 @@ struct circle{
 	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
 	//circle passing point P1P2P3
 	circle(Point p1, Point p2, Point p3){ //[!] p1,p2,p3 should not on same line
-		c=(p1+lineInt(p2,(p2-p1).l90(),p3,(p3-p1).l90()))/2;
+		//c=(p1+lineInt(p2,(p2-p1).l90(),p3,(p3-p1).l90()))/2; //this impl not good
+		vec B=p2-p1,C=p3-p1; db D=B&C*2;
+		c=vec(C.y*(B|B)-B.y*(C|C),B.x*(C|C)-C.x*(B|B))/D+p1;
 		r=!(p1-c);
 	}
 	//inscribed cricle of triangle P1P2P3
 	circle(Point p1, Point p2, Point p3, bool _){
-		vec u=(p1-p2).std(), v=(p3-p2).std(), w=(p1-p3).std();
-		c=lineInt(p2,u+v,p3,w-v);
-		r=lineDis(c,p2,v);
+		db x=!(p2-p3),y=!(p3-p1),z=!(p1-p2);
+		c=(p1*x+p2*y+p3*z)/(x+y+z);
+		r=lineDis(c,p1,p2-p1);
 	}
 	point angle(db theta){return c+point(theta)*r;}
 
@@ -168,7 +170,6 @@ struct circle{
 bool inCir(Point p, circle c){return sgn(!(c.c-p)-c.r)<=0;}
 
 //return -1,0,1,2, ans[2]
-//!-- test inside tang
 int cirCross(circle A, circle B, point *ans){
 	db d=!(A.c-B.c);
 	if (eq(d)){
@@ -180,7 +181,7 @@ int cirCross(circle A, circle B, point *ans){
 	db a=(B.c-A.c).ang();
 	db da=angle(A.r,d,B.r);
 	ans[0]=A.angle(a-da),ans[1]=A.angle(a+da);
-	if (eq(a)) return 1; //tang
+	if (eq(da) || eq(da-PI)) return 1; //tang
 	return 2; //normal inter
 }
 
@@ -189,8 +190,8 @@ int cirCross(circle A, circle B, point *ans){
 int cirTang(Point p, circle c, point *ans){
 	db d=!(c.c-p);
 	if (sgn(d-c.r)<0) return 0;
-	if (eq(d-c.r)){
-		ans[0] = p;
+	if (eq(d-c.r)){ //[!] notice this time ans[0]-p0 not a line
+		ans[0] = p; //ans[0]=(p-c.c).vert()+p; //to get a line
 		return 1;
 	}
 	db base=(p-c.c).ang();
@@ -304,7 +305,7 @@ int getCir(Point a, Point p, vec vp, db r, point *ans){
 	//point p1=p+vp.vert()*sgn(vp&a-p)*r; 
 	//return lineInt(p1,p1+vp,circle(a,r));
 	//independent implement
-	point p0=lineProj(a,p,vp); db d=!(p-p0);
+	point p0=lineProj(a,p,vp); db d=!(a-p0);
 	if (sgn(2*r-d)<0) return 0;
 	if (eq(2*r-d)) return ans[0]=(a+p0)/2,1;
 	point p1=p0+vp.vert()*sgn(vp&a-p)*r;
@@ -314,7 +315,7 @@ int getCir(Point a, Point p, vec vp, db r, point *ans){
 	ans[1]=p1-vp;
 	return 2;
 }
-//circle with radius r and tangent with line P and Q
+//circle with radius r and tangent with non-parallel line P and Q
 int getCir(point p, vec vp, point q, vec vq, db r, point *ans){
 	vec mvp=vp.vert()*r; //move dir
 	vec mvq=vq.vert()*r;
@@ -324,7 +325,7 @@ int getCir(point p, vec vp, point q, vec vq, db r, point *ans){
 	ans[3]=lineInt(p+mvp,vp,q+mvq,vq);
 	return 4;
 }
-//circle with radius r and tangent with circle c1 and c2
+//circle with radius r and tangent with disjoint circle c1 and c2
 int getCir(circle c1, circle c2, db r, point *ans){
 	return cirCross(circle(c1.c,c1.r+r),circle(c2.c,c2.r+r),ans);
 }
@@ -733,7 +734,7 @@ void test(){
 	cout<<segCross(point(0,4),point(0,0),d,vec(0,4))<<" expect 2\n";
 	cout<<segCross(point(1,1),point(0,0),d,vec(0,4))<<" expect 0\n";
 	cout<<segCross(point(2,2),point(-1,5),d,vec(0,4))<<" expect -1\n";
-	cout<<segCross(point(0,4),point(-1,5),d,vec(0,4))<<" expect 2\n";
+	cout<<segCross(point(0,4),point(-1,5),d,vec(0,4))<<" expect -1\n";
 	
 	point ans[2];
 	circle c1(point(0,1),1),c2(point(0,0),1);
