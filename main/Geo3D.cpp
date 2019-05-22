@@ -222,7 +222,7 @@ point barycenter(){
 	for (auto &f:ans){
 		db v=volume6(p[0],p[f.v[0]],p[f.v[1]],p[f.v[2]]);
 		sum+=v;
-		s=s+(p[0],p[f.v[0]]+p[f.v[1]]+p[f.v[2]])/4*v;
+		s=s+(p[0]+p[f.v[0]]+p[f.v[1]]+p[f.v[2]])/4*v;
 	}
 	return s/sum;
 }

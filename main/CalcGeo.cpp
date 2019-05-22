@@ -6,18 +6,18 @@ typedef double db;
 const db PI=acos(-1);
 const db eps=1e-10, inf=1e12;
 
+bool eq(db x){return fabs(x)<eps;}
 int sgn(db x){
 	if (x<=-eps) return -1;
 	return x>=eps;
 }
-bool eq(db x){return fabs(x)<eps;}
 
 #define Vec const vec &
 #define Point const point &
 struct vec{
 	db x,y;
 	vec():x(0),y(0){}
-	vec(db x, db y):x(x),y(y){}
+	vec(db x, db y):x(x),y(y){} //[i] init-list is easier to use in c++1x
 	vec(db theta):x(cos(theta)),y(sin(theta)){}
 
 	bool operator==(Vec v) const{return eq(x-v.x) && eq(y-v.y);}
@@ -28,12 +28,9 @@ struct vec{
 	vec operator*(db a) const{return vec(x*a,y*a);}
 	vec operator/(db a) const{return vec(x/a,y/a);}
 	
-	//dot
-	db operator|(Vec v) const{return x*v.x+y*v.y;}
-	//cross
-	db operator&(Vec v) const{return x*v.y-y*v.x;}
-	//len
-	db operator!() const{return sqrt(x*x+y*y);}
+	db operator|(Vec v) const{return x*v.x+y*v.y;} //dot
+	db operator&(Vec v) const{return x*v.y-y*v.x;} //cross
+	db operator!() const{return sqrt(x*x+y*y);}    //len
 	
 	bool operator<(Vec v) const{return x==v.x?y<v.y:x<v.x;}
 	//rotate countclockwise
@@ -41,13 +38,9 @@ struct vec{
 	vec rot(db rad) const{return vec(x*cos(rad)-y*sin(rad), x*sin(rad)+y*cos(rad));}
 	vec l90() const{return vec(-y,x);}
 	vec r90() const{return vec(y,-x);}
-	vec vert() const{ //l90 and standard
-		return (*this).l90().std();
-	}
-	friend ostream& operator<<(ostream &o, Vec v){
-		o<<v.x<<','<<v.y;
-		return o;
-	}
+	vec vert() const{return (*this).l90().std();}  //l90 and standard
+	
+	friend ostream& operator<<(ostream &o, Vec v){return o<<v.x<<','<<v.y;}
 };
 typedef vec point;
 
@@ -142,8 +135,8 @@ struct line{
 
 
 struct circle{
-	point c;
-	double r;
+	point c; db r;
+	
 	circle(){}
 	circle(Point c, db r):c(c),r(r){}
 	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
@@ -259,7 +252,7 @@ int segInt(Point a, Point b, circle c, point *ans){
 		if (sgn(t)>=0 && sgn(t-1)<=0) return ans[0]=a-v*t,1;
 		return 0;
 	}
-	db t1=(-f-sqrt(delta))/(2*e);
+	db t1=(-f-sqrt(delta))/(2*e); //[i] t1 is closer to a because f<0
 	db t2=(-f+sqrt(delta))/(2*e);
 	point a1=a+v*t1, a2=a+v*t2;
 	int cnt=0;
@@ -535,7 +528,7 @@ db minRectCover(point *p0, int n0){
 		while (cross(p[i],p[i+1],p[h+1])-cross(p[i],p[i+1],p[h])>=0) h=(h+1)%n; //farest
 		while (dot(p[i],p[i+1],p[r+1])-dot(p[i],p[i+1],p[r])>=0) r=(r+1)%n; //rightest
 		if (i==0) l=h;
-		while (dot(p[i],p[i+1],p[l+1])-dot(p[i],p[i+1],p[l])>=0) l=(l+1)%n; //leftest
+		while (dot(p[i],p[i+1],p[l+1])-dot(p[i],p[i+1],p[l])<=0) l=(l+1)%n; //leftest
 		db t=p[i+1]-p[i]|p[i+1]-p[i];
 		db s=cross(p[i],p[i+1],p[h])*(dot(p[i],p[i+1],p[r])-dot(p[i],p[i+1],p[l]))/t; //rect area
 		//min circumference of rectangle
@@ -594,11 +587,11 @@ db tri_cirArea(point p1, point p2, circle c){
 	if (sgn(!p1-r)<0){ //p1 in circle
 		if (sgn(!p2-r)<0) return triArea(p1,p2);
 		segInt(p1,p2,c,p);
-		return triArea(p1,p[0]) + secArea(p[0],p2,r);
+		return triArea(p1,p[0])+secArea(p[0],p2,r);
 	}
 	if (sgn(!p2-r)<0){ //p2 in circle
 		segInt(p1,p2,c,p);
-		return secArea(p1,p[0],r) + triArea(p[0],p2);
+		return secArea(p1,p[0],r)+triArea(p[0],p2);
 	}
 	int pc=segInt(p1,p2,c,p);
 	if (pc==2) return secArea(p1,p[0],r)+triArea(p[0],p[1])+secArea(p[1],p2,r);
@@ -608,7 +601,7 @@ db tri_cirArea(point p1, point p2, circle c){
 db poly_cirArea(point *p, int n, circle c){
 	db ans=0;
 	for (int i=0;i<n;i++){
-		db d=sgn(p[i]-c.c & p[(i+1)%n]-c.c);
+		db d=sgn(cross(c.c,p[i],p[(i+1)%n]));
 		ans+=d*tri_cirArea(p[i],p[(i+1)%n],c);
 	}
 	return fabs(ans);
@@ -645,7 +638,6 @@ namespace Circles{
 		sort(c,c+n,[](const circle &a, const circle &b){return a.c==b.c?a.r<b.r:a.c<b.c;});
 		n=unique(c,c+n)-c; //use circle::operator==
 	}
-
 	db arcarea(db rad, db r){return 0.5*r*r*(rad-sin(rad));}
 	//union area of circles
 	// ans[1] is union area
@@ -692,6 +684,7 @@ namespace Circles{
 		}
 		//for (int i=1;i<n;i++)
 		//	ans[i]-=ans[i+1];
+		return ans[1];
 	}
 }
 
