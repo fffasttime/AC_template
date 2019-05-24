@@ -40,6 +40,8 @@ struct vec{
 	vec r90() const{return vec(y,-x);}
 	vec vert() const{return (*this).l90().std();}  //l90 and standard
 	
+	void rd(){scanf("%lf%lf",&x,&y);}
+	void prt(){printf("%f %f\n",x,y);}
 	friend ostream& operator<<(ostream &o, Vec v){return o<<v.x<<','<<v.y;}
 };
 typedef vec point;
@@ -410,12 +412,12 @@ int convex(point *p, int n, point *ans){
 	n=unique(p,p+n)-p;
 	int m=0;
 	for (int i=0;i<n;i++){
-		while (m>1 && (ans[m-1]-ans[m-2]&p[i]-ans[m-2])<=0) m--;
+		while (m>1 && cross(ans[m-2],ans[m-1],p[i])<=0) m--;
 		ans[m++]=p[i];
 	}
 	int k=m;
 	for (int i=n-2;i>=0;i--){
-		while (m>k && (ans[m-1]-ans[m-2]&p[i]-ans[m-2])<=0) m--;
+		while (m>k && cross(ans[m-2],ans[m-1],p[i])<=0) m--;
 		ans[m++]=p[i];
 	}
 	if (n>1) m--; //p[0]==p[m]
@@ -425,13 +427,8 @@ int convex(point *p, int n, point *ans){
 //test point P strictly in convex polygon, o(nlogn)
 bool inConvex(point *p, int n, point q){ //require countclockwise convex hull
 	if (sgn(cross(p[0],q,p[1]))>=0 || sgn(cross(p[0],p[n-1],q))>=0) return 0;
-	int l=1,r=n-1;
-	while (l<r-1){
-		int m=l+r>>1;
-		if (cross(p[0],p[m],q)>0) l=m;
-		else r=m;
-	}
-	return sgn(cross(p[l],p[r],q))>0;
+	int s=lower_bound(p+1,p+n,q,[&](Point a, Point b){return sgn(cross(p[0],a,b))>0;})-p;
+	return sgn(cross(p[s-1],p[s],q))>0;
 }
 
 //cut convex polygon by line A, return right side of remain poly
@@ -445,7 +442,21 @@ int convexCut(point *p, int n, point a, vec v, point *ans){
 	}
 	return c;
 }
-
+//Minkowski sum
+int msum(point *p, int n, point *q, int m, point *ans){ 
+	int i,j,res=0; //res=m+n
+	#if 1          //flip q by (0,0) when calc moving q convex clip p
+	inc(i,m) q[i]=(vec){0,0}-q[i];
+	rotate(q,min_element(q,q+m),q+m); //be sure 0 leftest
+	#endif
+	p[n]=p[0]; q[m]=q[0];
+	for (i=0,j=0;i<n && j<m;)
+		if ((p[i+1]-p[i]&q[j+1]-q[j])>0) ans[res++]=p[++i]+q[j];
+		else ans[res++]=p[i]+q[++j];
+	for (;i<n;) ans[res++]=p[++i]+q[j];
+	for (;j<m;) ans[res++]=p[i]+q[++j];
+	return res; //[!] notice coliner point in result
+}
 //weather point p is lefter than line l
 bool onleft(point p, const line &l){return sgn(l.v&p-l.p)>0;}
 const int maxp=1001;
@@ -577,7 +588,7 @@ pair<int,int> convexInnerTang(point *p, int n, point *q, int m){
 
 //sector a~b of radius r
 db secArea(point a, point b, db r){return r*r*angle(a,b)/2;}
-db triArea(point p1, point p2){return fabs(p1&p2)/2;}
+db triArea(point a, point b){return fabs(a&b)/2;}
 //intersection area of circle C and triangle P1-P2-C
 db tri_cirArea(point p1, point p2, circle c){
 	db r=c.r;
@@ -797,6 +808,7 @@ void test(){
 	point aa[4];
 	point polyt[4]={{-1,0},{2,1},{1,0},{2,-1}};
 	cout<<convex(polyt,4,aa)<<" expect 3\n";
+	cout<<inConvex(aa,3,{0,0})<<" expect 1\n";
 	
 	cout<<mincirCover(polyt,4).c<<" expect "<<circle(poly[0],poly[1],poly[3]).c<<'\n';
 	cout<<mincirCover(polyt,4).r<<" expect "<<circle(poly[0],poly[1],poly[3]).r<<'\n';
