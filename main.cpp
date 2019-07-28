@@ -348,13 +348,13 @@ void spiltprime(ll n){
 
 }
 
-struct Q{
-	ll p,q;
+struct Q{ //frac
+	ll p,q; //require q>0
 	Q(ll x){p=x;q=1;}
 	void operator=(ll x){p=x;q=1;}
-	void simp(){ll t=gcd(p,q); if (t!=1) p/=t,q/=t; if (q<0) p=-p,q=-q;}
+	void simp(){ll t=gcd(abs(p),q); if (t!=1) p/=t,q/=t;}
 	void operator+=(const Q &v){p=p*v.q+v.p*q;q*=v.q;simp();}
-	void operator-=(const Q &v){p=p*v.q*v.p*q;q*=v.q;simp();}
+	void operator-=(const Q &v){p=p*v.q-v.p*q;q*=v.q;simp();}
 	void operator*=(const Q &v){p*=v.p;q*=v.q;simp();}
 	void operator/=(const Q &v){p*=v.q;q*=v.p;simp();}
 	Q operator+(const Q &y){Q x(*this);x+=y;return x;}
