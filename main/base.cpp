@@ -77,7 +77,7 @@ T gcd(T a, T b){ return b==0?a:gcd(b, a%b);}
 int gcd(int a, int b) {return b?gcd(b,a%b):a;}
 
 ll qmul(ll x,ll y,ll p){
-	ll t=(x*y-(ll)((long double)x/p*y+1.0e-8)*p);
+	ll t=(x*y-(ll)((long double)x/p*y+0.5)*p);
 	return t<0 ? t+p : t;
 }
 //return a^x

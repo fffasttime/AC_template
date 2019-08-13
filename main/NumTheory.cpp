@@ -1,6 +1,6 @@
 #include "base.cpp"
 
-namespace MathTheory{
+namespace NumTheory{
 
 const int maxn=1000010;
 int p[maxn],phi[maxn],mu[maxn],pc;
@@ -136,8 +136,8 @@ int getphi(int x){
 	return ans;
 }
 //be sure p=p^k,2p^k
-//original_root(2)=1, original_root(4)=3, special judge
-int original_root(int p){
+//primitive_root(2)=1, primitive_root(4)=3, special judge
+int primitive_root(int p){
 	int phi=p-1; //int phi=getphi(p); //when p is not prime
 	int pc=getfactor(phi);
 	for (int g=2,j;;g++){ //g ~ p^0.25 in average
@@ -176,8 +176,10 @@ bool isSquareRemain(int n, int p){
 	return qpow(n,(p-1)/2,p)==1;
 }
 
-const ll p0[]={2,3,5,7,11,13,17,19,23,29,31};
-//a^(p-1)=1 (mod p) , x^2=1 (mod p) while x=1 or p-1
+//in uint32, p0={2,7,61} is correct
+//p0={2,3,7,61,24251}, only 46856248255981 will wrong
+const ll p0[]={2,3,5,7,11,13,17,19,61,2333,24251};
+//1. a^(p-1)=1 (mod p) 2. if x^2=1 (mod p) then x={1,p-1}
 bool witness(ll a,ll n,ll r,ll s){
 	ll x=qpow(a,r,n),pre=x;
 	for (int i=0;i<s;i++){
@@ -185,13 +187,12 @@ bool witness(ll a,ll n,ll r,ll s){
 		if (x==1 && pre!=1 && pre!=n-1) return 0;
 		pre=x;
 	}
-	if (x!=1) return 0;
-	return 1;
+	return x==1;
 }
 bool MillerRabin(ll n){
 	if (n<=1) return 0;
-	if (n==2) return 1;
-	if (n%2==0) return 0;
+	if (n==2 || n==3 || n==5 || n==7) return 1;
+	if (n%2==0 || n%3==0 || n%5==0 || n%7==0) return 0;
 	ll r=n-1,s=0;
 	while (!(r&1)) r>>=1,s++;
 	for (int i=0;i<10;i++){
@@ -201,24 +202,26 @@ bool MillerRabin(ll n){
 	return 1;
 }
 
+//pollard_rho factorization, O(sqrt(sqrt(n))) in expection
 ll pol_rho(ll n,ll c){
-	ll k=2,x=rand()%n,y=x,p=1;
+	if (n%2==0) return 2; if (n%3==0) return 3;
+	ll k=2,x=rand()%(n-1)+1,y=x,p=1,val=1;
 	for (ll i=1;p==1;i++){
 		x=(qmul(x,x,n)+c)%n;
-		p=y>x?y-x:x-y;
-		p=gcd(n,p);
-		if (i==k)
-			y=x,k+=k;
+		val=qmul(val,abs(x-y),n); //gcd(ab%n,n)>=gcd(a,n)
+		if (!val) return n; //if fail, return before i reach k
+		if (!(i&127) || i==k) p=__gcd(val,n);
+		if (i==k) y=x,k+=k;
 	}
 	return p;
 }
 vector<int> primes;
-void spiltprime(ll n){
+void fastfactor(ll n){
 	if (n==1) return;
 	if (MillerRabin(n)) {primes.push_back(n); return;} //n is prime factor
-	ll t=n;
+	ll t=n; //if n not always lagre, make a single factor table for int may faster 
 	while (t==n) t=pol_rho(n,rand()%(n-1));
-	spiltprime(t); spiltprime(n/t);
+	fastfactor(t); fastfactor(n/t);
 }
 
 }

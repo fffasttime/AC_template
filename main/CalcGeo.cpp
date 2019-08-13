@@ -50,8 +50,8 @@ typedef vec point;
 // angle range [-pi,pi)
 bool cmp2(Vec a, Vec b){
 	int d1=sgn(a.y),d2=sgn(b.y);
-	if (d1^d2) return d1<d2;
-	if (d2==0) return a.x<b.x;
+	if (d1^d2&&d1&&d2) return d1<d2;
+	if (d2==0&&d2==0) return a.x<b.x;
 	return (a&b)>0;
 }
 
