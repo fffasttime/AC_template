@@ -65,6 +65,44 @@ int kmp_cnt(char *t, int tl){
 	return cnt;
 }
 }
+//!-- untested
+//extend KMP
+//extend[i]: LCP lenth between s1[i..l1] and s2
+namespace E_KMP{
+const int N=100010;
+int next[N],extend[N];
+void getnext(char *str){
+    int i=0,j,po,len=strlen(str);
+    next[0]=len;
+    while(str[i]==str[i+1] && i+1<len) i++; next[1]=i; //calc next[1]
+    po=1;
+    for(i=2;i<len;i++)
+        if(next[i-po]+i < next[po]+po)
+            next[i]=next[i-po];
+        else{
+            j = next[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && str[j]==str[j+i]) j++; next[i]=j;
+            po=i;
+        }
+}
+void exkmp(char *s1,char *s2){
+    int i=0,j,po,len=strlen(s1),l2=strlen(s2);
+    getnext(s2);
+    while(s1[i]==s2[i] && i<l2 && i<len) i++; extend[0]=i;
+    po=0;
+    for(i=1;i<len;i++)
+        if(next[i-po]+i < extend[po]+po)
+            extend[i]=next[i-po];
+        else //continue try match after e[po]+po
+        {
+            j = extend[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && j<l2 && s1[j+i]==s2[j]) j++; extend[i]=j;
+            po=i; //update po
+        }
+}
+}
 
 namespace ACAM{
 const int maxn=100000,alpha=26; //maxn >= sigma len(si)
@@ -110,27 +148,28 @@ void build(){
 int appear(char *s){
 	int l=strlen(s),cur=0,ans=0;
 	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a'];
-		for (int t=cur;t && ~val[t];t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t && ~val[t];t=fail[t]) //the label be sure O(n)
 			ans+=val[t],val[t]=-1;
 	}
 	return ans;
 }
 //count each mode str in s
+//[!] worst O(n^2), a better way is dp on fail tree
 void cntall(char *s){
 	int l=strlen(s),cur=0;
 	memset(cnt,0,sizeof(cnt));
 	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a'];
-		for (int t=cur;t;t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t;t=fail[t])
 			cnt[lbl[t]]++;
 	}
 }
 }
 
 namespace SA{
-//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a', h: height(adj LCP)
-//t1,t2,c: temp array
+//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a'
+//t1,t2,c: temp array, h: height(LCP of sa[i] and sa[i-1])
 int t1[N],t2[N],sa[N],h[N],rk[N],c[N],a[N];
 int n,m;
 void calcsa(){
@@ -152,7 +191,7 @@ void calcsa(){
 		m=p;
 	}
 	icc(i,n) rk[sa[i]]=i;
-	icc(i,n){
+	icc(i,n){ //get height, O(n)
 		int j=sa[rk[i]-1];
 		if (f) f--; while (a[i+f]==a[j+f]) f++;
 		h[rk[i]]=f;
@@ -214,12 +253,6 @@ int pos(Node *u, char *s){
 	if (!u->tr[*s-'a']) return -1;
 	return pos(u->tr[*s-'a'],s+1);
 }
-//count substr
-int cnt(Node *u, char *s){
-	if (*s==0) return u->num;
-	if (!u->tr[*s-'a']) return 0;
-	return cnt(u->tr[*s-'a'],s+1);
-}
 
 int t[maxn],r[maxn]; //t:temp, r:rank(ith element pos)
 //init |right(s)| before cnt
@@ -230,6 +263,13 @@ void initnum(int s0l){
 	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
 	per(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
 }
+//count substr
+int cnt(Node *u, char *s){
+	if (*s==0) return u->num;
+	if (!u->tr[*s-'a']) return 0;
+	return cnt(u->tr[*s-'a'],s+1);
+}
+// longest substring
 int lcs(char *x1){
 	int lcs=0, ans=0, xl=strlen(x1);
 	Node *p=root;
