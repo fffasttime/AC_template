@@ -33,6 +33,40 @@ void pre(){
 	for (int i=1;i<p;i++) fact[i]=fact[i-1]*i%p;
 	for (int i=0;i<p;i++) vfact[i]=qpow(fact[i], p-2, p);
 }
+
+//----exlucas----
+//return C(n,m) mod any number
+//time: O(max(p^k)*polylog)
+ll calc(ll n, ll x, ll P){ //solve n! mod p^k
+	if (!n) return 1;       //x:p ,P:p^k
+	ll s=1;
+	for (int i=1;i<=P;i++) //main cycle part
+		if (i%x) s=s*i%P;
+	s=qpow(s,n/P,P);
+	for (ll i=1;i<=n%P;i++) //remain part
+		if (i%x) s=s*i%P;
+	return s*calc(n/x,x,P)%P; //mod p==0 part
+}
+ll multilucas(ll n, ll m, ll x, ll P) { //solve C(n,m) mod p^k
+	ll cnt=0,s1=calc(n,x,P),s2=calc(m,x,P),s3=calc(n-m,x,P);
+	for (ll i=n;i;i/=x) cnt+=i/x;
+	for (ll i=m;i;i/=x) cnt-=i/x;
+	for (ll i=n-m;i;i/=x) cnt-=i/x;
+	return qpow(x,cnt,P)%P*s1%P*inv_euclid(s2,P)%P*inv_euclid(s3,P)%P;
+}
+ll exlucas(ll n, ll m, ll P){
+	int cnt=0;
+	ll p[20],a[20]; //no more 20 diff prime facter in int64
+	for (ll i=2;i*i<=P;i++) //O(sqrt P), use pol_rho when p is large
+		if (P%i==0){
+			p[cnt]=1;
+			while (P%i==0) p[cnt]=p[cnt]*i,P/=i;
+			a[cnt]=multilucas(n,m,i,p[cnt]); //solve mod p^k
+			cnt++;
+		}
+	if (P>1) a[cnt]=multilucas(n,m,P,P),p[cnt]=P,++cnt;
+	return CRT(cnt,a,p);
+}
 }
 
 namespace Cantor{

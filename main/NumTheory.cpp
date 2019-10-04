@@ -72,17 +72,17 @@ ll inv_euclid(ll v, ll p){
 	ll x,y; exgcd(v,p,x,y); //exgcd(v,p,x,y)==1 required
 	return (x+p)%p;
 }
-//CRT
+//CRT, require (p1,p2,...)=1
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
 //result=sum(bi*Mi*Mi'), MiMi'=1(mod pi)
-ll china(int n, ll a[], ll p[]){
+ll CRT(int n, ll a[], ll p[]){
 	ll M=1,x=0;
-	for (int i=0;i<n;i++) M*=p[i];
-	for (int i=0;i<n;i++)	{
+	for (int i=0;i<n;i++) M*=p[i]; //[!] notice if M>int32, a*b%M may overflow
+	for (int i=0;i<n;i++){
 		ll w=M/p[i]; //x=pi*k1+a + w*k2
-		x=(x+w*qpow(w,p[i]-2,p[i])%M*a[i])%M; //get k1, pi*k1=a (Mod w)
+		x=(x+w*inv_euclid(w,p[i])%M*a[i])%M; //get k1, pi*k1=a (Mod w)
 		//use inv_euclid() instead qpow() when p[] is not prime 
 	}
 	return (x+M)%M;
@@ -92,7 +92,7 @@ ll china(int n, ll a[], ll p[]){
 //x=a1(mod m1), x=a2(mod m2)
 //result: x(mod p1p2)
 int CRT2(int a1, int m1, int a2, int m2){
-	int m=m1*m2;
+	int m=m1*m2;    //[!] notice if M>int32
 	return (a1*m2%m*inv_euclid(m2,m1)+a2*m1%m*inv_euclid(m1,m2))%m;
 }
 
@@ -100,7 +100,7 @@ int CRT2(int a1, int m1, int a2, int m2){
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
-ll china1(int n, ll a[], ll p[]){
+ll EXCRT(int n, ll a[], ll p[]){
 	ll n1=p[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
 	for (int i=1;i<n;i++){ //merge equs by order
 		n2=p[i],a2=a[i]; 
@@ -112,7 +112,7 @@ ll china1(int n, ll a[], ll p[]){
 		a1+=n1*K; n1*=t;
 		a1=(a1+n1)%n1;
 	}
-	return a1;
+	return a1; //all answers are a1+LCM(p1,p2,..)
 }
 
 //get prime fact, x=mul(pi[i]^pa[i])
@@ -135,6 +135,7 @@ int getphi(int x){
 		ans=ans/pi[i]*(pi[i]-1);
 	return ans;
 }
+
 //be sure p=p^k,2p^k
 //primitive_root(2)=1, primitive_root(4)=3, special judge
 int primitive_root(int p){
@@ -148,13 +149,13 @@ int primitive_root(int p){
 	}
 	//other solution of g: {g0^k | 0<k<phi, gcd(k, phi)=1}
 }
-
 //discrete logarithm
-//a^x=b(mod p)
+//solve a^x=b(mod p), require gcd(a,p)=1
+//if a is primitive root and gcd(b,p)=1, the answer always exists
 ll BSGS(ll a, ll b, ll p){
 	int m,v,e=1;
 	m=(int)sqrt(p+0.5);
-	v=inv(qpow(a,m,p),p);
+	v=inv(qpow(a,m,p),p); //[!] use inv_euclid
 	map<int,int> x; //unordered_map -> O(sqrt(N))
 	x[1]=0;
 	for (int i=1;i<m;i++){
@@ -168,6 +169,19 @@ ll BSGS(ll a, ll b, ll p){
 		b=b*v%p;
 	}
 	return -1;
+}
+//find minimum x of a^x=b(mod m)
+ll EXBSGS(ll a, ll b, ll m){
+	if (b==1 || m==1) return 0;
+	ll d,ca=1,k=0;
+	while ((d=__gcd(a,m))>1){
+		if (b%d) return -1;
+		m/=d,b/=d; ca=ca*(a/d)%m; k++;
+		if (ca==b) return k; //spj x<k
+	}
+	ll ret=BSGS(a,b*inv(ca,m)%m,m);
+	if (ret==-1) return -1;
+	return ret+k;
 }
 
 //judge if x^2=n (mod p) has solution

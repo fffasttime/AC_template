@@ -84,15 +84,13 @@ ll qmul(ll x,ll y,ll p){
 T qpow(T a, int x){
 	T ans=1;
 	for (;x;a*=a,x>>=1)
-		if (x&1)
-			ans*=a;
+		if (x&1) ans*=a;
 	return ans;
 }
 ll qpow(ll a, ll x, ll p){
 	ll ans=1;
 	for (;x;a=qmul(a,a,p),x>>=1)
-		if (x&1)
-			ans=qmul(ans,a,p);
+		if (x&1) ans=qmul(ans,a,p);
 	return ans;
 }
 
