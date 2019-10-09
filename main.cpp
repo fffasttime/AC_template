@@ -77,22 +77,20 @@ T gcd(T a, T b){ return b==0?a:gcd(b, a%b);}
 int gcd(int a, int b) {return b?gcd(b,a%b):a;}
 
 ll qmul(ll x,ll y,ll p){
-	ll t=(x*y-(ll)((long double)x/p*y+1.0e-8)*p);
+	ll t=(x*y-(ll)((long double)x/p*y+0.5)*p);
 	return t<0 ? t+p : t;
 }
 //return a^x
 T qpow(T a, int x){
 	T ans=1;
 	for (;x;a*=a,x>>=1)
-		if (x&1)
-			ans*=a;
+		if (x&1) ans*=a;
 	return ans;
 }
 ll qpow(ll a, ll x, ll p){
 	ll ans=1;
 	for (;x;a=qmul(a,a,p),x>>=1)
-		if (x&1)
-			ans=qmul(ans,a,p);
+		if (x&1) ans=qmul(ans,a,p);
 	return ans;
 }
 
@@ -125,7 +123,7 @@ int inv(int x, int p){
 	return qpow(x,p-2,p);
 }
 
-namespace MathTheory{
+namespace NumTheory{
 
 const int maxn=1000010;
 int p[maxn],phi[maxn],mu[maxn],pc;
@@ -197,17 +195,17 @@ ll inv_euclid(ll v, ll p){
 	ll x,y; exgcd(v,p,x,y); //exgcd(v,p,x,y)==1 required
 	return (x+p)%p;
 }
-//CRT
+//CRT, require (p1,p2,...)=1
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
 //result=sum(bi*Mi*Mi'), MiMi'=1(mod pi)
-ll china(int n, ll a[], ll p[]){
+ll CRT(int n, ll a[], ll p[]){
 	ll M=1,x=0;
-	for (int i=0;i<n;i++) M*=p[i];
-	for (int i=0;i<n;i++)	{
+	for (int i=0;i<n;i++) M*=p[i]; //[!] notice if M>int32, a*b%M may overflow
+	for (int i=0;i<n;i++){
 		ll w=M/p[i]; //x=pi*k1+a + w*k2
-		x=(x+w*qpow(w,p[i]-2,p[i])%M*a[i])%M; //get k1, pi*k1=a (Mod w)
+		x=(x+w*inv_euclid(w,p[i])%M*a[i])%M; //get k1, pi*k1=a (Mod w)
 		//use inv_euclid() instead qpow() when p[] is not prime 
 	}
 	return (x+M)%M;
@@ -217,7 +215,7 @@ ll china(int n, ll a[], ll p[]){
 //x=a1(mod m1), x=a2(mod m2)
 //result: x(mod p1p2)
 int CRT2(int a1, int m1, int a2, int m2){
-	int m=m1*m2;
+	int m=m1*m2;    //[!] notice if M>int32
 	return (a1*m2%m*inv_euclid(m2,m1)+a2*m1%m*inv_euclid(m1,m2))%m;
 }
 
@@ -225,7 +223,7 @@ int CRT2(int a1, int m1, int a2, int m2){
 //x=a1(mod p1)
 //x=a2(mod p2)
 //...
-ll china1(int n, ll a[], ll p[]){
+ll EXCRT(int n, ll a[], ll p[]){
 	ll n1=p[0],a1=a[0],n2,a2,k1,k2,K,gcd,c,t;
 	for (int i=1;i<n;i++){ //merge equs by order
 		n2=p[i],a2=a[i]; 
@@ -237,7 +235,7 @@ ll china1(int n, ll a[], ll p[]){
 		a1+=n1*K; n1*=t;
 		a1=(a1+n1)%n1;
 	}
-	return a1;
+	return a1; //all answers are a1+LCM(p1,p2,..)
 }
 
 //get prime fact, x=mul(pi[i]^pa[i])
@@ -254,15 +252,20 @@ int getfactor(int x){ //O(sqrt(n)), when x is a prime
 	return c;
 }
 //single number phi, O(sqrt(n))
-int getphi(int x){
-	int ans=x, pc=getfactor(x);
-	for (int i=0;i<pc;i++)
-		ans=ans/pi[i]*(pi[i]-1);
+int getphi(int n){
+	int ans=n;
+	for (int i=2;i*i<=n;i++)
+		if (n%i==0){
+			ans=ans/i*(i-1);
+			while (n%i==0) n/=i;
+		}
+	if (n>1) ans=ans/n*(n-1);
 	return ans;
 }
+
 //be sure p=p^k,2p^k
-//original_root(2)=1, original_root(4)=3, special judge
-int original_root(int p){
+//primitive_root(2)=1, primitive_root(4)=3, special judge
+int primitive_root(int p){
 	int phi=p-1; //int phi=getphi(p); //when p is not prime
 	int pc=getfactor(phi);
 	for (int g=2,j;;g++){ //g ~ p^0.25 in average
@@ -273,13 +276,13 @@ int original_root(int p){
 	}
 	//other solution of g: {g0^k | 0<k<phi, gcd(k, phi)=1}
 }
-
 //discrete logarithm
-//a^x=b(mod p)
+//solve a^x=b(mod p), require gcd(a,p)=1
+//if a is primitive root and gcd(b,p)=1, the answer always exists
 ll BSGS(ll a, ll b, ll p){
 	int m,v,e=1;
 	m=(int)sqrt(p+0.5);
-	v=inv(qpow(a,m,p),p);
+	v=inv(qpow(a,m,p),p); //[!] use inv_euclid
 	map<int,int> x; //unordered_map -> O(sqrt(N))
 	x[1]=0;
 	for (int i=1;i<m;i++){
@@ -294,6 +297,19 @@ ll BSGS(ll a, ll b, ll p){
 	}
 	return -1;
 }
+//find minimum x of a^x=b(mod m)
+ll EXBSGS(ll a, ll b, ll m){
+	if (b==1 || m==1) return 0;
+	ll d,ca=1,k=0;
+	while ((d=__gcd(a,m))>1){
+		if (b%d) return -1;
+		m/=d,b/=d; ca=ca*(a/d)%m; k++;
+		if (ca==b) return k; //spj x<k
+	}
+	ll ret=BSGS(a,b*inv(ca,m)%m,m);
+	if (ret==-1) return -1;
+	return ret+k;
+}
 
 //judge if x^2=n (mod p) has solution
 //qpow(n,(p-1)/2,p)=[1 nRp | p-2 n!Rp | 0 n==0]
@@ -301,8 +317,10 @@ bool isSquareRemain(int n, int p){
 	return qpow(n,(p-1)/2,p)==1;
 }
 
-const ll p0[]={2,3,5,7,11,13,17,19,23,29,31};
-//a^(p-1)=1 (mod p) , x^2=1 (mod p) while x=1 or p-1
+//in uint32, p0={2,7,61} is correct
+//p0={2,3,7,61,24251}, only 46856248255981 will wrong
+const ll p0[]={2,3,5,7,11,13,17,19,61,2333,24251};
+//1. a^(p-1)=1 (mod p) 2. if x^2=1 (mod p) then x={1,p-1}
 bool witness(ll a,ll n,ll r,ll s){
 	ll x=qpow(a,r,n),pre=x;
 	for (int i=0;i<s;i++){
@@ -310,13 +328,12 @@ bool witness(ll a,ll n,ll r,ll s){
 		if (x==1 && pre!=1 && pre!=n-1) return 0;
 		pre=x;
 	}
-	if (x!=1) return 0;
-	return 1;
+	return x==1;
 }
 bool MillerRabin(ll n){
 	if (n<=1) return 0;
-	if (n==2) return 1;
-	if (n%2==0) return 0;
+	if (n==2 || n==3 || n==5 || n==7) return 1;
+	if (n%2==0 || n%3==0 || n%5==0 || n%7==0) return 0;
 	ll r=n-1,s=0;
 	while (!(r&1)) r>>=1,s++;
 	for (int i=0;i<10;i++){
@@ -326,35 +343,37 @@ bool MillerRabin(ll n){
 	return 1;
 }
 
+//pollard_rho factorization, O(sqrt(sqrt(n))) in expection
 ll pol_rho(ll n,ll c){
-	ll k=2,x=rand()%n,y=x,p=1;
+	if (n%2==0) return 2; if (n%3==0) return 3;
+	ll k=2,x=rand()%(n-1)+1,y=x,p=1,val=1;
 	for (ll i=1;p==1;i++){
 		x=(qmul(x,x,n)+c)%n;
-		p=y>x?y-x:x-y;
-		p=gcd(n,p);
-		if (i==k)
-			y=x,k+=k;
+		val=qmul(val,abs(x-y),n); //gcd(ab%n,n)>=gcd(a,n)
+		if (!val) return n; //if fail, return before i reach k
+		if (!(i&127) || i==k) p=__gcd(val,n);
+		if (i==k) y=x,k+=k;
 	}
 	return p;
 }
 vector<int> primes;
-void spiltprime(ll n){
+void fastfactor(ll n){
 	if (n==1) return;
 	if (MillerRabin(n)) {primes.push_back(n); return;} //n is prime factor
-	ll t=n;
+	ll t=n; //if n not always lagre, make a single factor table for int may faster 
 	while (t==n) t=pol_rho(n,rand()%(n-1));
-	spiltprime(t); spiltprime(n/t);
+	fastfactor(t); fastfactor(n/t);
 }
 
 }
 
-struct Q{ //frac
-	ll p,q; //require q>0
+struct Q{
+	ll p,q;
 	Q(ll x){p=x;q=1;}
 	void operator=(ll x){p=x;q=1;}
-	void simp(){ll t=gcd(abs(p),q); if (t!=1) p/=t,q/=t;}
+	void simp(){ll t=gcd(p,q); if (t!=1) p/=t,q/=t; if (q<0) p=-p,q=-q;}
 	void operator+=(const Q &v){p=p*v.q+v.p*q;q*=v.q;simp();}
-	void operator-=(const Q &v){p=p*v.q-v.p*q;q*=v.q;simp();}
+	void operator-=(const Q &v){p=p*v.q*v.p*q;q*=v.q;simp();}
 	void operator*=(const Q &v){p*=v.p;q*=v.q;simp();}
 	void operator/=(const Q &v){p*=v.q;q*=v.p;simp();}
 	Q operator+(const Q &y){Q x(*this);x+=y;return x;}
@@ -380,6 +399,40 @@ void pre(){
 	fact[0]=1;
 	for (int i=1;i<p;i++) fact[i]=fact[i-1]*i%p;
 	for (int i=0;i<p;i++) vfact[i]=qpow(fact[i], p-2, p);
+}
+
+//----exlucas----
+//return C(n,m) mod any number
+//time: O(max(p^k)*polylog)
+ll calc(ll n, ll x, ll P){ //solve n! mod p^k
+	if (!n) return 1;       //x:p ,P:p^k
+	ll s=1;
+	for (int i=1;i<=P;i++) //main cycle part
+		if (i%x) s=s*i%P;
+	s=qpow(s,n/P,P);
+	for (ll i=1;i<=n%P;i++) //remain part
+		if (i%x) s=s*i%P;
+	return s*calc(n/x,x,P)%P; //mod p==0 part
+}
+ll multilucas(ll n, ll m, ll x, ll P) { //solve C(n,m) mod p^k
+	ll cnt=0,s1=calc(n,x,P),s2=calc(m,x,P),s3=calc(n-m,x,P);
+	for (ll i=n;i;i/=x) cnt+=i/x;
+	for (ll i=m;i;i/=x) cnt-=i/x;
+	for (ll i=n-m;i;i/=x) cnt-=i/x;
+	return qpow(x,cnt,P)%P*s1%P*NumTheory::inv_euclid(s2,P)%P*NumTheory::inv_euclid(s3,P)%P;
+}
+ll exlucas(ll n, ll m, ll P){
+	int cnt=0;
+	ll p[20],a[20]; //no more 20 diff prime facter in int64
+	for (ll i=2;i*i<=P;i++) //O(sqrt P), use pol_rho when p is large
+		if (P%i==0){
+			p[cnt]=1;
+			while (P%i==0) p[cnt]=p[cnt]*i,P/=i;
+			a[cnt]=multilucas(n,m,i,p[cnt]); //solve mod p^k
+			cnt++;
+		}
+	if (P>1) a[cnt]=multilucas(n,m,P,P),p[cnt]=P,++cnt;
+	return NumTheory::CRT(cnt,a,p);
 }
 }
 
@@ -1189,6 +1242,7 @@ void bit_conv(int *fa, int *fb, int *c){
 }
 }
 }
+
 namespace Expr{
 //Easy experission, calc +-*/^()
 #define CP cin.peek()
@@ -1449,19 +1503,20 @@ namespace NetFlow{
 #define INF 0x3f3f3f3f
 const int maxn=1003,maxm=10003<<4;
 struct Edge{
-	int to,nxt,cap,flow,cost;
+	int to,nxt,cap,cost; //assert cap>=0
 }ed[maxm];
 int head[maxn],ecnt=1,n,m;
 void added(int a, int b, int cap){
-	ed[++ecnt]=(Edge){b,head[a],cap,0,0};
+	ed[++ecnt]=(Edge){b,head[a],cap,0};
 	head[a]=ecnt;
-	ed[++ecnt]=(Edge){a,head[b],0,0,0};
+	ed[++ecnt]=(Edge){a,head[b],0,0};
 	head[b]=ecnt;
 }
 int s,t,a[maxn],fr[maxn],fp[maxn];
 bool vis[maxn];
-//deleted O(n^5)
-int MF_FF(){
+//deleted O(VE^2)
+#ifdef USE_DELETED
+int MF_EK(){
 	int ans=0;
 	while (1){
 		memset(vis,0,sizeof(vis));
@@ -1475,11 +1530,10 @@ int MF_FF(){
 			if (u==t) break;
 			for (int i=head[u];i;i=ed[i].nxt){
 				int v=ed[i].to;
-				if (!vis[v] && ed[i].cap>ed[i].flow){
+				if (!vis[v] && ed[i].cap){
 					vis[v]=1;
-					a[v]=min(a[u],ed[i].cap-ed[i].flow);
-					fp[v]=u;
-					fr[v]=i;
+					a[v]=min(a[u],ed[i].cap);
+					fp[v]=u; fr[v]=i;
 					qu.push(v);
 				}
 			}
@@ -1487,52 +1541,57 @@ int MF_FF(){
 		if (!a[t]) break;
 		ans+=a[t];
 		for (int i=t;i!=s;i=fp[i]){
-			ed[fr[i]].flow+=a[t];
-			ed[fr[i]^1].flow-=a[t];
+			ed[fr[i]].cap-=a[t];
+			ed[fr[i]^1].cap+=a[t];
 		}
 	}
 	return ans;
 }
+#endif
+
+//isap, worst O(V^2E), but fast enough on most meaningful graph
+//on layered graph is O(VE), and on unit capicity graph is O(E^1.5)
 int now[maxn],num[maxn];
 int isap_aug(int u, int f){
 	if (u==t) return f;
 	int ans=0;
 	for (int i=now[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
 		if (a[u]==a[v]+1){
-			int w=isap_aug(v,min(f,ed[i].cap-ed[i].flow));
-			ans+=w; f-=w; ed[i].flow+=w; ed[i^1].flow-=w;
+			int w=isap_aug(v,min(f,ed[i].cap));
+			ans+=w; f-=w; ed[i].cap-=w; ed[i^1].cap+=w; //aug
 			if (!f) return ans;
 			now[u]=i;
 		}
-	if (!(--num[a[u]])) a[s]=n+1;
+	if (!(--num[a[u]])) a[s]=n+1; //gap opt
 	++num[++a[u]]; now[u]=head[u];
 	return ans;
 }
 int MF_isap(){
-	memset(num,0,sizeof(num));
-	memset(a,0,sizeof(a));
+	memset(num,0,sizeof(num)); //num: label cnt
+	memset(a,0,sizeof(a)); //a: label
 	for (int i=1;i<=n;i++) now[i]=head[i];
 	static int qu[maxn];
 	int ql,qr=1; qu[ql=0]=t;
 	++num[a[t]=1];
-	while (ql<qr){
+	while (ql<qr){ //optimize, bfs label at first
 		int u=qu[ql++];
 		for (int i=head[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
 			if (!a[v]) ++num[a[v]=a[u]+1],qu[++qr]=v;
 	}
-	int ret=isap_aug(s,INF);
+	ll ret=isap_aug(s,INF);
 	while (a[s]<=n) ret+=isap_aug(s,INF);
 	return ret;
 }
 
+//deleted, similar as MF_isap
 int dinic_dfs(int u, int f){
 	int ans=0,w;
 	if (u==t) return f;
 	for (int i=now[u];i;i=ed[i].nxt){
 		int v=ed[i].to;
-		if (a[v]==a[u]+1 && ed[i].cap-ed[i].flow && (w=dinic_dfs(v,min(ed[i].cap-ed[i].flow,f)))){
+		if (a[v]==a[u]+1 && ed[i].cap && (w=dinic_dfs(v,min(ed[i].cap,f)))){
 			ans+=w;
-			ed[i].flow+=w; ed[i^1].flow-=w;
+			ed[i].cap-=w; ed[i^1].cap+=w;
 			f-=w; if (f==0) return ans;
 			now[u]=i;
 		}
@@ -1552,10 +1611,9 @@ int MF_dinic(){
 			if (u==t) break;
 			for (int i=head[u];i;i=ed[i].nxt){
 				int v=ed[i].to;
-				if (!vis[v] && ed[i].cap>ed[i].flow){
+				if (!vis[v] && ed[i].cap){
 					qu.push(v);
 					a[v]=a[u]+1;
-					fr[v]=i; fp[v]=u;
 					vis[v]=1;
 				}
 			}
@@ -1568,14 +1626,14 @@ int MF_dinic(){
 }
 
 void added(int a, int b, int cap, int cost){
-	ed[++ecnt]=(Edge){b,head[a],cap,0,cost};
+	ed[++ecnt]=(Edge){b,head[a],cap,cost};
 	head[a]=ecnt;
-	ed[++ecnt]=(Edge){a,head[b],0,0,-cost};
+	ed[++ecnt]=(Edge){a,head[b],0,-cost};
 	head[b]=ecnt;
 }
 int dis[maxn];
 int MCMF(){
-	int ans=0;
+	int ans=0,mf=0;
 	while (1){
 		memset(vis,0,sizeof(vis));
 		memset(dis,0x3f,sizeof(dis));
@@ -1585,58 +1643,100 @@ int MCMF(){
 			int u=qu.front(); qu.pop(); vis[u]=0;
 			for (int i=head[u];i;i=ed[i].nxt){
 				int v=ed[i].to;
-				if (ed[i].flow<ed[i].cap && dis[v]>dis[u]+ed[i].cost){
+				if (ed[i].cap && dis[v]>dis[u]+ed[i].cost){
 					dis[v]=dis[u]+ed[i].cost;
 					fr[v]=i; fp[v]=u;
-					if (!vis[v]){
-						vis[v]=1;
-						qu.push(v);
-					}
+					if (!vis[v]) vis[v]=1,qu.push(v);
 				}
 			}
 		}
-		if (dis[t]==INF) break;
+		if (dis[t]>INF/3) break;
 		int mc=INF;
-		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap-ed[fr[i]].flow);
+		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap);
 		for (int i=t;i!=s;i=fp[i]){
-			ed[fr[i]].flow+=mc;
-			ed[fr[i]^1].flow-=mc;
+			ed[fr[i]].cap-=mc;
+			ed[fr[i]^1].cap+=mc;
 			ans+=mc*ed[fr[i]].cost;
 		}
+		mf+=mc;
 	}
+	cout<<mf<<' ';
 	return ans;
 }
-//dijkstra version, but seems slower than before?
+//dijkstra version, more stable. 
+//[!] The cost should be positive before first argument, or the
+// complexity is not right. Run SPFA on first step is requied. 
 int h[maxn];
 int MCMF_dijk(){
 	memset(h,0,sizeof(h)); //set h[all vertex] to 0
 	int ans=0;
 	while (1){
-		priority_queue<pair<int,int>> qu;
+		priority_queue<pair<int,int>,vector<pair<int,int>>,greater<pair<int,int>>> qu;
 		memset(dis,0x3f,sizeof(dis));
 		dis[s]=0; qu.push({0,s});
 		while (!qu.empty()){
-			int du=-qu.top().first, u=qu.top().second;
+			int du=qu.top().first, u=qu.top().second;
 			qu.pop();
 			if (dis[u]<du) continue;
 			for (int i=head[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
-				if (ed[i].flow<ed[i].cap && dis[v]>dis[u]+ed[i].cost+h[u]-h[v]){
+				if (ed[i].cap && dis[v]>dis[u]+ed[i].cost+h[u]-h[v]){
 					dis[v]=dis[u]+ed[i].cost+h[u]-h[v];
 					fp[v]=u; fr[v]=i;
-					qu.push({-dis[v],v});
+					qu.push({dis[v],v});
 				}
 		}
 		if (dis[t]>INF/3) break;
 		for (int i=0;i<=n;i++) h[i]+=dis[i];
 		int mc=INF;
-		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap-ed[fr[i]].flow);
+		for (int i=t;i!=s;i=fp[i]) mc=min(mc,ed[fr[i]].cap);
 		for (int i=t;i!=s;i=fp[i]){
-			ed[fr[i]].flow+=mc;
-			ed[fr[i]^1].flow-=mc;
+			ed[fr[i]].cap-=mc;
+			ed[fr[i]^1].cap+=mc;
 			ans+=mc*ed[fr[i]].cost;
 		}
 	}
 	return ans;
+}
+
+//zkw cost flow, faster on wide and small capicity graph
+int zkw_ans;
+int dfs_aug(int u, int f){
+	vis[u]=1;
+	if (u==t) return f;
+	int w,ad=0; 
+	for (int i=head[u];i;i=ed[i].nxt){
+		int v=ed[i].to;
+		if (!vis[v] && ed[i].cap && dis[u]-ed[i].cost==dis[v] && (w=dfs_aug(v,min(f,ed[i].cap)))){
+			zkw_ans+=w*ed[i].cost; ad+=w;
+			ed[i].cap-=w; ed[i^1].cap+=w;
+			if (f==0) break;
+		}
+	}
+	return ad;
+}
+int MCMF_zkw(){
+	int zkw_mf=0; zkw_ans=0;
+	while (1){
+		memset(vis,0,sizeof(vis));
+		memset(dis,0x3f,sizeof(dis));
+		queue<int> qu; qu.push(t);
+		dis[t]=0; vis[t]=1;
+		while (qu.size()){ //spfa on reverse path
+			int u=qu.front(); qu.pop(); vis[u]=0;
+			for (int i=head[u];i;i=ed[i].nxt){
+				int v=ed[i].to;
+				if (ed[i^1].cap && dis[v]>dis[u]-ed[i].cost){
+					dis[v]=dis[u]-ed[i].cost;
+					if (!vis[v]) vis[v]=1,qu.push(v);
+				}
+			}
+		}
+		if (dis[s]>INF/3) break;
+		memset(vis,0,sizeof vis);
+		zkw_mf+=dfs_aug(s, INF);
+	}
+	cout<<zkw_mf<<' ';
+	return zkw_ans;
 }
 
 #undef INF
@@ -1853,6 +1953,44 @@ int kmp_cnt(char *t, int tl){
 	return cnt;
 }
 }
+//!-- untested
+//extend KMP
+//extend[i]: LCP lenth between s1[i..l1] and s2
+namespace E_KMP{
+const int N=100010;
+int next[N],extend[N];
+void getnext(char *str){
+    int i=0,j,po,len=strlen(str);
+    next[0]=len;
+    while(str[i]==str[i+1] && i+1<len) i++; next[1]=i; //calc next[1]
+    po=1;
+    for(i=2;i<len;i++)
+        if(next[i-po]+i < next[po]+po)
+            next[i]=next[i-po];
+        else{
+            j = next[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && str[j]==str[j+i]) j++; next[i]=j;
+            po=i;
+        }
+}
+void exkmp(char *s1,char *s2){
+    int i=0,j,po,len=strlen(s1),l2=strlen(s2);
+    getnext(s2);
+    while(s1[i]==s2[i] && i<l2 && i<len) i++; extend[0]=i;
+    po=0;
+    for(i=1;i<len;i++)
+        if(next[i-po]+i < extend[po]+po)
+            extend[i]=next[i-po];
+        else //continue try match after e[po]+po
+        {
+            j = extend[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && j<l2 && s1[j+i]==s2[j]) j++; extend[i]=j;
+            po=i; //update po
+        }
+}
+}
 
 namespace ACAM{
 const int maxn=100000,alpha=26; //maxn >= sigma len(si)
@@ -1898,27 +2036,28 @@ void build(){
 int appear(char *s){
 	int l=strlen(s),cur=0,ans=0;
 	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a'];
-		for (int t=cur;t && ~val[t];t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t && ~val[t];t=fail[t]) //the label be sure O(n)
 			ans+=val[t],val[t]=-1;
 	}
 	return ans;
 }
 //count each mode str in s
+//[!] worst O(n^2), a better way is dp on fail tree
 void cntall(char *s){
 	int l=strlen(s),cur=0;
 	memset(cnt,0,sizeof(cnt));
 	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a'];
-		for (int t=cur;t;t=fail[t]) //the opt trans emitted fail jump chain, do it when necessary
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t;t=fail[t])
 			cnt[lbl[t]]++;
 	}
 }
 }
 
 namespace SA{
-//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a', h: height(adj LCP)
-//t1,t2,c: temp array
+//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a'
+//t1,t2,c: temp array, h: height(LCP of sa[i] and sa[i-1])
 int t1[N],t2[N],sa[N],h[N],rk[N],c[N],a[N];
 int n,m;
 void calcsa(){
@@ -1940,7 +2079,7 @@ void calcsa(){
 		m=p;
 	}
 	icc(i,n) rk[sa[i]]=i;
-	icc(i,n){
+	icc(i,n){ //get height, O(n)
 		int j=sa[rk[i]-1];
 		if (f) f--; while (a[i+f]==a[j+f]) f++;
 		h[rk[i]]=f;
@@ -2002,12 +2141,6 @@ int pos(Node *u, char *s){
 	if (!u->tr[*s-'a']) return -1;
 	return pos(u->tr[*s-'a'],s+1);
 }
-//count substr
-int cnt(Node *u, char *s){
-	if (*s==0) return u->num;
-	if (!u->tr[*s-'a']) return 0;
-	return cnt(u->tr[*s-'a'],s+1);
-}
 
 int t[maxn],r[maxn]; //t:temp, r:rank(ith element pos)
 //init |right(s)| before cnt
@@ -2018,6 +2151,13 @@ void initnum(int s0l){
 	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
 	per(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
 }
+//count substr
+int cnt(Node *u, char *s){
+	if (*s==0) return u->num;
+	if (!u->tr[*s-'a']) return 0;
+	return cnt(u->tr[*s-'a'],s+1);
+}
+// longest substring
 int lcs(char *x1){
 	int lcs=0, ans=0, xl=strlen(x1);
 	Node *p=root;
@@ -2661,31 +2801,12 @@ int main(){ //reverse
 #undef rc
 }
 
-namespace ST{
-const int maxn=100010;
-int st[30][maxn],a[maxn];
-
-int run(){
-	int n,m; rd(n); rd(m);
-	for (int i=1;i<=n;i++) rd(a[i]),st[0][i]=a[i];
-	for (int i=1;i<30;i++)
-		for (int j=1;j+(1<<(i-1))<=n;j++)
-			st[i][j]=max(st[i-1][j],st[i-1][j+(1<<(i-1))]); //make
-	for (int i=1;i<=m;i++){ //query
-		int l,r; rd(l); rd(r);
-		int x=log(r-l+1)/log(2)+0.00001;
-		cout<<max(st[x][l],st[x][r+1-(1<<x)])<<'\n';
-	}
-	return 0;
-}
-};
-
 namespace LinAlg{
 const int maxn=1010,maxm=1010;
 double a[maxn][maxm],b[maxn][maxn],ans[maxn];
 int n,m;
 const int eps=1e-7;
-//require m=n+1
+//require m=n+1 and only one solution
 bool gauss_solve(){
 	for (int i=0;i<n;i++){
 		int maxl=i;
@@ -2763,37 +2884,35 @@ int matrank(){
 	return l;
 }
 const ll p=19260817; //const is faster than normal variable
-//int det with abs,mod
+//int det with mod
 //used by Matrix-Tree theorem
-//M-T theo: a[i][i]=-deg i, a[i][j]=cnt(i->j), n=|u|-1
-//!--
-ll detint_abs(ll **a){
+//M-T theo: a[i][i]=deg i, a[i][j]=-cnt(i->j), n=|vertex|-1
+ll detint(ll **a){
 	ll ans=1;
 	for (int i=0;i<n;i++) for (int j=0;j<n;j++) if (a[i][j]<0) a[i][j]+=p;
 	for (int i=0;i<n;i++){
 		int maxl=i;
 		for (int j=i;j<n;j++)
 			if (a[j][i]) {maxl=j;break;}
-		if (i!=maxl) swap(a[i],a[maxl]);
+		if (i!=maxl) swap(a[i],a[maxl]), ans=p-ans;
 		if (a[i][i]==0) return 0;
-		ans=ans*a[i][i]%p;
+		ans=ans*a[i][i]%p;   //[i] Here update ans before set a[i][i] to 1
 		int v=inv(a[i][i],p);
 		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
 		for (int j=i+1;j<n;j++){
-			if (!a[j][i]) continue;
 			ll r1=a[j][i];
+			if (!r1) continue;
 			for (int k=i;k<n;k++)
 				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
-				//a[j][k]=(a[j][k]*a[i][i]-a[j][i]*a[i][k]%p+p)%p; //not good
 		}
 	}
-	return ans; //not nagetive
+	return ans;
 }
 //matinv with mod
 //require m=2*n, result is a[i][(0..n-1)+n]
 bool matinv_int(ll **a){
 	m=2*n;
-	//a[i][(0..n-1)+n]=0; //set to 0 
+	//a[i][(0..n-1)+n]=0; //set to 0 when necessary
 	for (int i=0;i<n;i++) a[i][i+n]=1;	
 	for (int i=0;i<n;i++){
 		int maxl=i;
@@ -2816,14 +2935,14 @@ bool matinv_int(ll **a){
 int n,m,p;
 //solve linear equ in module p
 //not require m=n+1, get a possible solution ans[0..m-1)
-bool gauss_solve_int(){  //similar to matrank
+bool gauss_solve_int(){  //similar as matrank
 	int l=0; //real line
 	for (int i=0;i<m;i++){ //i: col start pos
 		int maxl=l;
 		for (int j=l;j<n;j++)
 			if (a[j][i]) {maxl=j;break;}
 		if (maxl!=l) swap(a[l],a[maxl]);
-		if (!a[l][i]) continue; 
+		if (!a[l][i]) continue; //next col
 		int v=inv(a[l][i],p);
 		for (int j=i;j<m;j++) a[l][j]=a[l][j]*v%p;
 		for (int j=l+1;j<n;j++){
@@ -2833,19 +2952,16 @@ bool gauss_solve_int(){  //similar to matrank
 				a[j][k]=(a[j][k]-r1*a[l][k]%p+p)%p;
 		}
 		l++;
-	}
-//		for (int j=30;j<40;j++,cout<<'\n')
-//			for (int k=0;k<m;k++)
-//				cout<<a[j][k]<<' ';
-//		cout<<'\n';
+	} //now l is rank of matrix
 	int last=m-1,cur;
 	for (int i=l-1;i>=0;i--){
-		for (cur=0;cur<m-1 && !a[i][cur];cur++);
+		for (cur=0;cur<m-1 && !a[i][cur];cur++); //first no zero column
 		int t=a[i][m-1]; 
 		for (int j=last;j<m-1;j++) t=(t-a[i][j]*ans[j]%p+p)%p;
-		for (last--;last>cur;last--) ans[last]=0; //any solution
+		for (last--;last>cur;last--) //any solution, set to 0
+			ans[last]=0; //,t=(t-a[i][j]*ans[last]%p+p)%p; when ans[last] is not 0
 		if (cur==m-1 && t) return 0; //no solution
-		ans[cur]=t;
+		ans[cur]=t; //a[i][cur]=1, so ans[cur]=t
 		last=cur;
 	}
 	return 1;
@@ -3180,168 +3296,118 @@ int main(){
 }
 }
 
-//data structure of xor sum
-namespace XorBase{
-//we may need <bitset> sometimes
-typedef unsigned long long ll;
-ll base[64];
-void add(ll x){
-	for (int i=63;i>=0;i--)
-		if (x&1ull<<i)
-			if (!base[i]){
-				base[i]=x;
-				return;
-			}
-			else x^=base[i];
-}
-//test if x can perform by xor sum
-bool test(ll x){
-	for (int i=63;i>=0;i--)
-		if (x&1ull<<i)
-			if (!base[i]) return 0;
-			else x^=base[i];
-	return 1;
-}
-//max xor sum
-ll maxc(){
-	ll ans=0;
-	for (int i=63;i>=0;i--)
-		if ((ans^base[i])>ans)
-			ans^=base[i];
-	return ans;
-}
-//min xor sum
-ll minc(){for (int i=0;i<64;i++) if (base[i]) return base[i];}
-//query kth max number
-//k should not larger than 2^(dim linspan(x))
-ll kth(ll k){
-	ll ans=0,tmp[64],cnt=0;
-    for(T i=0;i<64;i++){ //set matrix to simplest form
-        for(int j=i-1;j>=0;j--)
-			if(base[i]&1ull<<j) base[i]^=base[j];
-        if(base[i])tmp[cnt++]=base[i];
-    }
-	for (int i=63;i>=0;i--)
-		if (k&1ull<<i)
-			ans^=tmp[i];
-	return ans;
-}
-}
-
 namespace CalcGeo{
 
 typedef double db;
 const db PI=acos(-1);
+const db eps=1e-10, inf=1e12;
 
-const db eps=1e-10;
-
-int dcmp(db x){
+bool eq(db x){return fabs(x)<eps;}
+int sgn(db x){
 	if (x<=-eps) return -1;
 	return x>=eps;
 }
-bool eq(db x, db y){
-	return fabs(x-y)<eps;
-}
-bool eq0(db x){
-	return fabs(x)<eps;
-}
+
 #define Vec const vec &
 #define Point const point &
 struct vec{
 	db x,y;
 	vec():x(0),y(0){}
-	vec(db x, db y):x(x),y(y){}
+	vec(db x, db y):x(x),y(y){} //[i] init-list is easier to use in c++1x
 	vec(db theta):x(cos(theta)),y(sin(theta)){}
-	bool operator==(Vec v) const{
-		return eq(x,v.x) && eq(y,v.y);
-	}
-	db angle() const{
-		return atan2(y,x);
-	}
-	bool operator<(Vec v) const{return x==v.x?y<v.y:x<v.x;}
+
+	bool operator==(Vec v) const{return eq(x-v.x) && eq(y-v.y);}
+	db ang() const{return atan2(y,x);}
+	
 	vec operator+(Vec v) const{return vec(x+v.x,y+v.y);}
 	vec operator-(Vec v) const{return vec(x-v.x,y-v.y);}
 	vec operator*(db a) const{return vec(x*a,y*a);}
 	vec operator/(db a) const{return vec(x/a,y/a);}
 	
-	db operator^(Vec v) const{ //dot plus, note priority
-		return x*v.x+y*v.y;
-	}
-	db operator*(Vec v) const{ //cross plus
-		return x*v.y-y*v.x;
-	}
-	db operator!() const{
-		return x*x+y*y;
-	}
-	db len() const{
-		return sqrt(x*x+y*y);
-	}
-	vec rotate(db rad) const{
-		return vec(x*cos(rad)-y*sin(rad), x*sin(rad)+y*cos(rad));
-	}
-	vec vert() const{ //��λ����
-		db L=(*this).len();
-		return vec(-y/L,x/L);
-	}
-	friend ostream& operator<<(ostream &o, Vec v){
-		o<<v.x<<' '<<v.y;
-		return o;
-	}
+	db operator|(Vec v) const{return x*v.x+y*v.y;} //dot
+	db operator&(Vec v) const{return x*v.y-y*v.x;} //cross
+	db operator!() const{return sqrt(x*x+y*y);}    //len
+	
+	bool operator<(Vec v) const{return x==v.x?y<v.y:x<v.x;}
+	//rotate countclockwise
+	vec std() const{return *this/!*this;}
+	vec rot(db rad) const{return vec(x*cos(rad)-y*sin(rad), x*sin(rad)+y*cos(rad));}
+	vec l90() const{return vec(-y,x);}
+	vec r90() const{return vec(y,-x);}
+	vec vert() const{return (*this).l90().std();}  //l90 and standard
+	
+	void rd(){scanf("%lf%lf",&x,&y);}
+	void prt(){printf("%f %f\n",x,y);}
+	friend ostream& operator<<(ostream &o, Vec v){return o<<v.x<<','<<v.y;}
 };
 typedef vec point;
 
-db dis(Point a, Point b){
-	return (a-b).len();
+//cmp2 sort by angle without atan2
+// angle range [-pi,pi)
+bool cmp2(Vec a, Vec b){
+	int d1=sgn(a.y),d2=sgn(b.y);
+	if (d1^d2&&d1&&d2) return d1<d2;
+	if (d2==0&&d2==0) return a.x<b.x;
+	return (a&b)>0;
 }
-db angle(Vec a, Vec b){
-	return acos((a^b)/a.len()/b.len());
-}
-db area2(Point a, Point b, Point c){
-	return (b-a)*(c-a);
-}
-/*
-Line: P=P0+t*vp
-Segment: 0<=t<=1.
-*/
-//cross point of line P and Q
-point lineCross(Point p, Vec vp, Point q, Vec vq){
-	db t=(vq*(p-q))/(vp*vq);
+
+db angle(Vec a, Vec b){return fabs(atan2(a&b,a|b));}
+db cross(Point a, Point b, Point c){return b-a & c-a;}
+db dot(Point a, Point b, Point c){return b-a | c-a;}
+
+//cosine theory
+db angle(db a, db b, db c){return acos((a*a+b*b-c*c)/(2*a*b));}
+
+//Line: P=P0+t*vp
+// Segment: 0<=t<=1
+//intersection point of line P and Q
+point lineInt(Point p, Vec vp, Point q, Vec vq){
+	db t=(vq & p-q)/(vp&vq);
 	return p+vp*t;
 }
-db lineDis(Point p, Point a, Point b){
-	vec v1=b-a,v2=p-a;
-	return fabs(v1*v2/v1.len());
+//point projection on line A+tV
+point lineProj(Point p, Point s, Vec v){
+	return s+v*(v|p-s)/(v|v);
 }
-db segDis(Point p, Point a, Point b){
-	if (a==b) return dis(a,p);
-	vec v1=b-a,v2=p-a,v3=p-b;
-	if ((v1^v2)<0) return v2.len();
-	else if ((v1^v3)>0) return v3.len();
-	else return fabs(v1*v2/v1.len());
+//symmetric point of P about line A+tV
+point symmetric(Point p, Point s, Vec v){
+	return lineProj(p,s,v)*2-p;
 }
-point lineProj(Point p, Point a, Point b){
-	vec v=b-a;
-	return a+v*((v^(p-a))/(v^v));
+//distance of p to line A+tV
+db lineDis(Point p, Point s, Vec v){
+	return fabs(v & p-s)/!v;
 }
+//distance of p to segment A+tV
+db segDis(Point p, Point s, Vec v){
+	if (eq(!v)) return !(s-p); //a point
+	vec v2=p-s,v3=p-s-v;
+	if ((v|v2)<0) return !v2;
+	else if ((v|v3)>0) return !v3;
+	return fabs(v&v2)/!v;
+}
+//distance of seg A-B and seg C-D
+db segDis(Point a, Point b, Point c, Point d){
+	vec u=b-a, v=d-c;
+	return min(min(segDis(c,a,u),segDis(d,a,u)),min(segDis(a,c,v),segDis(b,c,v)));
+}
+
 //point is on line
-bool onLine(Point p, Point a, Point b){
-	return eq0((p-a)*(b-a));
-}
+bool onLine(Point p, Point a, Point b){return eq(p-a&b-a);}
 //point on seg [a,b]
-bool onSeg(Point p, Point a, Point b){
-	return onLine(p,a,b) && dcmp((a-p)^(b-p))<=0;
-}
-//fast test before line cross, 0 indicate the line are not cross 
-bool rectCross(Point a1, Point a2, Point b1, Point b2){return 
+bool onSeg(Point p, Point a, Point b){return onLine(p,a,b) && sgn(a-p|b-p)<=0;}
+
+//fast test before segment cross, 0 indicate the segment are not cross 
+bool rectCover(Point a1, Point a2, Point b1, Point b2){return 
 	min(a1.x,a2.x)<=max(b1.x,b2.x)+eps &&
 	min(b1.x,b2.x)<=max(a1.x,a2.x)+eps &&
 	min(a1.y,a2.y)<=max(b1.y,b2.y)+eps &&
 	min(b1.y,b2.y)<=max(a1.y,a2.y)+eps;
 }
+//test if segment A1-A2 B1-B2 is cross
 int segCross(Point a1, Point a2, Point b1, Point b2){
-	if (!rectCross(a1,a2,b1,b2)) return 0;
-	db c1=dcmp((a2-a1)*(b1-a1)), c2=dcmp((a2-a1)*(b2-a1));
-	db c3=dcmp((b2-b1)*(a1-b1)), c4=dcmp((b2-b1)*(a2-b1));
+	if (!rectCover(a1,a2,b1,b2)) return 0; //not necessary
+	db c1=sgn(a2-a1&b1-a1), c2=sgn(a2-a1&b2-a1);
+	db c3=sgn(b2-b1&a1-b1), c4=sgn(b2-b1&a2-b1);
 	if (c1*c2>0 || c3*c4>0) //no cross
 		return 0; 
 	if (c1==0 && c2==0||c3==0 && c4==0) //segment on same line
@@ -3349,300 +3415,584 @@ int segCross(Point a1, Point a2, Point b1, Point b2){
 	if (c1*c2<0 && c3*c4<0) return 1; //normal cross
 	return 2; //a point on line
 }
-struct circle{
-	point c;
-	double r;
-	circle(Point c, db r):c(c),r(r){}
-	circle(Point p1, Point p2):c((p1+p2)/2),r(dis(p1,p2)/2){}
-	circle(Point p1, Point p2, Point p3){
-		c=(p1+lineCross(p2,(p2-p1).vert(),p3,(p3-p1).vert()))/2;
-		r=(p1-c).len();
+
+//#define const line& Line
+
+struct line{
+	point p; vec v;
+	line(){}
+	line(Point p, db ang):p(p),v(ang){}
+	//ax+by+c=0
+	line(db a, db b, db c){
+		if (eq(b)) p=point(-c/a,0), v=vec(0,1);
+		else p=point(0,-c/b),v=vec(1,-a/b);
 	}
-	bool operator==(circle v) const{
-		return c==v.c && r==v.r;
-	}
-	point angle(db theta){
-		return c+point(theta)*r;
-	}
+	line(Point p, Vec v):p(p),v(v){}
+	bool operator<(const line &l) const{return v.ang()<l.v.ang();}
 };
 
-bool inCir(point p, circle c){
-	return dcmp(dis(c.c,p)-c.r)<=0;
-}
-//return -1,0,1,2, ans[2]
-//!--
-int cirCross(circle A, circle B, point *ans){
-	db d=dis(A.c,B.c);
-	if (eq0(d)){
-		if (eq(A.r,B.r)) return -1;
-		return 0;
+
+struct circle{
+	point c; db r;
+	
+	circle(){}
+	circle(Point c, db r):c(c),r(r){}
+	circle(Point p1, Point p2):c((p1+p2)/2),r(!(p1-p2)/2){}
+	//circle passing point P1P2P3
+	circle(Point p1, Point p2, Point p3){ //[!] p1,p2,p3 should not on same line
+		//c=(p1+lineInt(p2,(p2-p1).l90(),p3,(p3-p1).l90()))/2; //this impl not good
+		vec B=p2-p1,C=p3-p1; db D=B&C*2;
+		c=vec(C.y*(B|B)-B.y*(C|C),B.x*(C|C)-C.x*(B|B))/D+p1;
+		r=!(p1-c);
 	}
-	if (dcmp(A.r+B.r-d)<0) return 0;
-	db a=(B.c-A.c).angle();
-	db da=acos((A.r*A.r+d*d-B.r*B.r)/(2*A.r*d));
+	//inscribed cricle of triangle P1P2P3
+	circle(Point p1, Point p2, Point p3, bool _){
+		db x=!(p2-p3),y=!(p3-p1),z=!(p1-p2);
+		c=(p1*x+p2*y+p3*z)/(x+y+z);
+		r=lineDis(c,p1,p2-p1);
+	}
+	point angle(db theta){return c+point(theta)*r;}
+
+	bool operator==(const circle &v) const{return c==v.c && eq(r-v.r);}
+};
+
+
+//point in or on circle
+bool inCir(Point p, circle c){return sgn(!(c.c-p)-c.r)<=0;}
+
+//return -1,0,1,2, ans[2]
+int cirCross(circle A, circle B, point *ans){
+	db d=!(A.c-B.c);
+	if (eq(d)){
+		if (eq(A.r-B.r)) return -1; //same circle
+		return 0; //same center
+	}
+	if (sgn(d-fabs(A.r-B.r))<0) return 0; //inside
+	if (sgn(A.r+B.r-d)<0) return 0; //too far
+	db a=(B.c-A.c).ang();
+	db da=angle(A.r,d,B.r);
 	ans[0]=A.angle(a-da),ans[1]=A.angle(a+da);
-	if (ans[0]==ans[1]) return 1;
-	return 2;
+	if (eq(da) || eq(da-PI)) return 1; //tang
+	return 2; //normal inter
 }
 
-//make tangent line from p
-//return tan point
+//get tangent points on circle from point p
+//return  ans[2] : tangent point 
 int cirTang(Point p, circle c, point *ans){
-	db d=(c.c-p).len();
-	if (dcmp(d-c.r)<0) return 0;
-	if (eq(d,c.r)){
-		ans[0] = p;
+	db d=!(c.c-p);
+	if (sgn(d-c.r)<0) return 0;
+	if (eq(d-c.r)){ //[!] notice this time ans[0]-p0 not a line
+		ans[0] = p; //ans[0]=(p-c.c).vert()+p; //to get a line
 		return 1;
 	}
-	db base=(p-c.c).angle();
+	db base=(p-c.c).ang();
 	db ang=acos(c.r/d);
 	ans[0]=c.angle(base-ang);
 	ans[1]=c.angle(base+ang);
 	return 2;
 }
-//point a[4],b[4], tangent point on circle
-//cnt maybe -1(same), 0(in), 1(intang), 2(cross), 3(outtang), 4(out) 
+
+//get cir-cir common tangent line
+//return  a[4],b[4] : tangent point on circle
+//cnt maybe -1(same), 0(in), 1(in tangent), 2(cross), 3(out tangent), 4(out) 
 int cirTang(circle A, circle B, point *a, point *b){
 	int cnt=0;
-	if (A==B) return -1;
+	if (A.c==B.c && eq(A.r-B.r)) return -1;
 	if (A.r<B.r) swap(A,B),swap(a,b);
-	db d=dis(A.c,B.c);
+	db d=!(A.c-B.c);
 	db diff=A.r-B.r, sum=A.r+B.r;
-	if (dcmp(d-diff)<0) return 0;
-	db base=(B.c-A.c).angle();
-	if (eq(d,diff)){
+	if (sgn(d-diff)<0) return 0;
+	db base=(B.c-A.c).ang();
+	if (eq(d-diff)){
 		a[0] = A.angle(base);
 		b[0] = a[0];
 		return 1;
 	}
 	db ang=acos((A.r-B.r)/d);
-	a[cnt]=A.angle(base+ang); b[cnt]=B.angle(base+ang); cnt++;
-	a[cnt]=A.angle(base-ang); b[cnt]=B.angle(base-ang); cnt++;
-	if (eq(d,sum)){
+	//in common tangent
+	a[cnt]=A.angle(base+ang); b[cnt++]=B.angle(base+ang);
+	a[cnt]=A.angle(base-ang); b[cnt++]=B.angle(base-ang);
+	if (eq(d-sum)){
 		a[cnt] = A.angle(base);
 		b[cnt] = a[cnt];
 		cnt++;
-	} else if (dcmp(d-sum)>0){
+	} else if (sgn(d-sum)>0){ //out common tangent
 		ang=acos((A.r+B.r)/d);
-		a[cnt]=A.angle(base+ang); b[cnt]=B.angle(PI+base+ang); cnt++;
-		a[cnt]=A.angle(base-ang); b[cnt]=B.angle(PI+base-ang); cnt++;
+		a[cnt]=A.angle(base+ang); b[cnt++]=B.angle(PI+base+ang); 
+		a[cnt]=A.angle(base-ang); b[cnt++]=B.angle(PI+base-ang); 
 	}
 	return cnt;
 }
-//!-- test
-//line AB cross circle c
-int cirCross(Point a, Point b, circle c, point *ans){
+
+//line A-B cross circle c point
+//return  ans[2] : cross or tangent point
+int lineInt(Point a, Point b, circle c, point *ans){
 	vec v=b-a, u=a-c.c;
-	db e=!v, f=2*(v^u), g=!u-c.r*c.r;
+	db e=v|v, f=v|u*2, g=(u|u)-c.r*c.r;
 	db delta=f*f-4*e*g;
 	if (delta<0) return 0;
-	if (eq0(delta)){
-		ans[0]=a-v*(f/2/e);
-		return 1;
-	}
+	if (eq(delta)) return ans[0]=a-v*(f/2/e),1;
 	db t1=(-f-sqrt(delta))/(2*e);
 	db t2=(-f+sqrt(delta))/(2*e);
 	ans[0]=a+v*t1;
 	ans[1]=a+v*t2;
 	return 2;
 }
-
-int seg_cirCross(Point a, Point b, circle c, point *ans){
+//seg A-B cross circle c point
+//return  ans[2] : cross or tangent point
+int segInt(Point a, Point b, circle c, point *ans){
 	vec v=b-a, u=a-c.c;
-	db e=!v, f=2*(v^u), g=!u-c.r*c.r;
+	db e=v|v, f=v|u*2, g=(u|u)-c.r*c.r;
 	db delta=f*f-4*e*g;
 	if (delta<0) return 0;
-	if (eq0(delta)){
-		ans[0]=a-v*(f/2/e);
-		return 1;
+	if (eq(delta)){
+		db t=f/2/e;
+		if (sgn(t)>=0 && sgn(t-1)<=0) return ans[0]=a-v*t,1;
+		return 0;
 	}
-	db t1=(-f-sqrt(delta))/(2*e);
+	db t1=(-f-sqrt(delta))/(2*e); //[i] t1 is closer to a because f<0
 	db t2=(-f+sqrt(delta))/(2*e);
 	point a1=a+v*t1, a2=a+v*t2;
 	int cnt=0;
-	if (dcmp(t1)>=0 && dcmp(t1-1)<=0) ans[cnt++]=a1;
-	if (dcmp(t2)>=0 && dcmp(t2-1)<=0) ans[cnt++]=a2;
+	if (sgn(t1)>=0 && sgn(t1-1)<=0) ans[cnt++]=a1;
+	if (sgn(t2)>=0 && sgn(t2-1)<=0) ans[cnt++]=a2;
 	return cnt;
 }
-//1 in, 0 out, -1 border
+
+//insection area of two circle a and b
+//!-- test
+db cirIntArea(circle a, circle b){
+	db d=!(a.c-b.c);
+	if (sgn(d-a.r-b.r)>=0) return 0; // too far
+	if (sgn(d-fabs(a.r-b.r)<=0)) return PI*min(a.r,b.r)*min(a.r,b.r); //inside
+	db hf=(a.r+b.r+d)/2;
+	db s=-2*sqrt(hf*(hf-a.r)*(hf-b.r)*(hf-d));
+	s+=angle(a.r,d,b.r)*a.r*a.r;
+	s+=angle(b.r,d,a.r)*b.r*b.r;
+	return s;
+}
+
+//UVA12304 get circles with radius r and other conditions
+//circle passing A and B with radius r
+// return ans[2]: center circle
+int getCir(Point a, Point b, db r, point *ans){
+	//circle A(a,r),B(b,r); return cirCross(A,B,r); //another implement
+	db d=!(a-b)/2;
+	if (sgn(d-r)<0) return 0;
+	vec v=(b-a)/2;
+	if (eq(d-r)) return ans[0]=a+v,1;
+	ans[0]=a+v+v.vert()*sqrt(r*r-d*d);
+	ans[1]=a+v-v.vert()*sqrt(r*r-d*d);
+	return 2;
+}
+//circle with radius r passing point A and tangent with line P
+int getCir(Point a, Point p, vec vp, db r, point *ans){
+	if (eq(vp&a-p)){ //special judge point A on line P
+		ans[0]=p+vp.vert()*r;
+		ans[1]=p-vp.vert()*r;
+		return 2;
+	}
+	//implement by line-cir-intersection 
+	//point p1=p+vp.vert()*sgn(vp&a-p)*r; 
+	//return lineInt(p1,p1+vp,circle(a,r));
+	//independent implement
+	point p0=lineProj(a,p,vp); db d=!(a-p0);
+	if (sgn(2*r-d)<0) return 0;
+	if (eq(2*r-d)) return ans[0]=(a+p0)/2,1;
+	point p1=p0+vp.vert()*sgn(vp&a-p)*r;
+	d-=r; d=sqrt(r*r-d*d);
+	vp=vp.std()*d;
+	ans[0]=p1+vp;
+	ans[1]=p1-vp;
+	return 2;
+}
+//circle with radius r and tangent with non-parallel line P and Q
+int getCir(point p, vec vp, point q, vec vq, db r, point *ans){
+	vec mvp=vp.vert()*r; //move dir
+	vec mvq=vq.vert()*r;
+	ans[0]=lineInt(p-mvp,vp,q-mvq,vq);
+	ans[1]=lineInt(p-mvp,vp,q+mvq,vq);
+	ans[2]=lineInt(p+mvp,vp,q-mvq,vq);
+	ans[3]=lineInt(p+mvp,vp,q+mvq,vq);
+	return 4;
+}
+//circle with radius r and tangent with disjoint circle c1 and c2
+int getCir(circle c1, circle c2, db r, point *ans){
+	return cirCross(circle(c1.c,c1.r+r),circle(c2.c,c2.r+r),ans);
+}
+
+//inverse circle C by  circle P with radius 1
+circle inverseCir(Point p, circle c){
+	db d=!(c.c-p);
+	if (eq(c.r-d)) //get a line
+		return circle(vec(inf,inf),inf);
+	db d2=1/(d+c.r);
+	db d1=1/(d-c.r);
+	vec v=c.c-p; v=v/!v;
+	return circle(p+v*(d1+d2)/2,(d1-d2)/2);
+}
+circle inverseCir(Point p, Point s, Vec v){
+	point t=lineProj(p,s,v);
+	db r=0.5/!(t-p); //radius
+	return circle(p+(t-p)/!(t-p)*r,r);
+}
+
+//--poly--
+
+//point is in or on polygon
+//return  1(in), 0(out), -1(on border)
 int inPoly(point p, point *poly, int n){
 	int w=0;
 	for (int i=0;i<n;i++){
 		if (onSeg(p,poly[i],poly[(i+1)%n])) 
 			return -1;
-		int k=dcmp((poly[(i+1)%n]-poly[i])*(p-poly[i]));
-		int d1=dcmp(poly[i].y-p.y);
-		int d2=dcmp(poly[(i+1)%n].y-p.y);
+		int k=sgn(poly[(i+1)%n]-poly[i] & p-poly[i]);
+		int d1=sgn(poly[i].y-p.y);
+		int d2=sgn(poly[(i+1)%n].y-p.y);
 		if (k>0 && d1<=0 && d2>0) w++;
 		if (k<0 && d2<=0 && d1>0) w--;
 	}
 	return w!=0;
 }
-//seg in poly, 0 out/border, 1 in
-//if point at border regard as in poly, 
-//the condition is (any segCross(...)==1) && (online<2 || the line short an epsilon still in poly)   
+//test segment strict in poly, 0 out/border, 1 in
 bool inPoly(point p1, point p2, point *poly, int n){
-	if (!inPoly(p1,poly,n) || !inPoly(p2,poly,n))
-		return 0;
+	if (!inPoly(p1,poly,n) || !inPoly(p2,poly,n)) return 0;
 	for (int i=0;i<n;i++)
 		if (segCross(p1,p2,poly[i],poly[(i+1)%n]))
 			return 0;
 	return 1;
 }
-//-- if the poly is not simple, the result will be strange
+//point at border regard as in poly
+const db epr=1e-5; //[!] epr should larger than eps*tan(angle(segment and poly-edge))
+bool inPoly2(point p1, point p2, point *poly, int n){
+	if (inPoly(p1*epr+p2*(1-epr),poly,n)==0 || inPoly(p2*epr+p1*(1-epr),poly,n)==0) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n])==1)
+			return 0;
+	return 1;
+}
+bool outPoly(point p1, point p2, point *poly, int n){
+	if (inPoly(p1,poly,n) || inPoly(p2,poly,n)) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n]))
+			return 0;
+	return 1;
+}
+bool outPoly2(point p1, point p2, point *poly, int n){
+	if (inPoly(p1*epr+p2*(1-epr),poly,n)==1 || inPoly(p2*epr+p1*(1-epr),poly,n)==1) return 0;
+	for (int i=0;i<n;i++)
+		if (segCross(p1,p2,poly[i],poly[(i+1)%n])==1)
+			return 0;
+	return 1;
+}
+
+// [!] Require simple polygon, or the result will be strange
 db polyArea(point *p, int n){
 	db sum=0;
 	for (int i=1;i<n-1;i++)
-		sum+=area2(p[0],p[i+1],p[i]);
+		sum+=cross(p[0],p[i+1],p[i]);
 	return fabs(sum)/2;
 }
-//Andrew algo, faster than Graham Scan
+
+point polyBaryCenter(point *p, int n){
+	point ret(0,0);
+	for (int i=1;i<n-1;i++)
+		ret=ret+(p[0]+p[i]+p[i+1])/3;
+	return ret;
+}
+
+//convex hull, Andrew algo
+// return  ans[m]
 int convex(point *p, int n, point *ans){
 	sort(p,p+n);
+	n=unique(p,p+n)-p;
 	int m=0;
 	for (int i=0;i<n;i++){
-		while (m>1 && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<=0) m--;
+		while (m>1 && cross(ans[m-2],ans[m-1],p[i])<=0) m--;
 		ans[m++]=p[i];
 	}
 	int k=m;
 	for (int i=n-2;i>=0;i--){
-		while (m>k && (ans[m-1]-ans[m-2])*(p[i]-ans[m-2])<=0) m--;
+		while (m>k && cross(ans[m-2],ans[m-1],p[i])<=0) m--;
 		ans[m++]=p[i];
 	}
-	if (n>1) m--;
+	if (n>1) m--; //p[0]==p[m]
 	return m;
 }
 
-struct Line{
-	point p; vec v;
-	db ang;
-	Line(){}
-	Line(Point p, Vec v):p(p),v(v){}
-	bool operator<(const Line &L) const{
-		return ang<L.ang;
-	}
-};
-
-bool onleft(Line &l, point p){
-	return dcmp(l.v*(p-l.p))>0;
+//test point P strictly in convex polygon, o(nlogn)
+bool inConvex(point *p, int n, point q){ //require countclockwise convex hull
+	if (sgn(cross(p[0],q,p[1]))>=0 || sgn(cross(p[0],p[n-1],q))>=0) return 0;
+	int s=lower_bound(p+1,p+n,q,[&](Point a, Point b){return sgn(cross(p[0],a,b))>0;})-p;
+	return sgn(cross(p[s-1],p[s],q))>0;
 }
+
+//cut convex polygon by line A, return right side of remain poly
+int convexCut(point *p, int n, point a, vec v, point *ans){
+	int c=0;
+	for (int i=0;i<n;i++){
+		int d1=sgn(v&p[i]-a);
+		int d2=sgn(v&p[(i+1)%n]-a);
+		if (d1>=0) ans[c++]=p[i];
+		if (d1*d2<0) ans[c++]=lineInt(a,v,p[i],p[(i+1)%n]-p[i]); //cut
+	}
+	return c;
+}
+//Minkowski sum
+int msum(point *p, int n, point *q, int m, point *ans){ 
+	int i,j,res=0; //res=m+n
+	#if 1          //flip q by (0,0) when calc moving q convex clip p
+	inc(i,m) q[i]=(vec){0,0}-q[i];
+	rotate(q,min_element(q,q+m),q+m); //be sure 0 leftest
+	#endif
+	p[n]=p[0]; q[m]=q[0];
+	for (i=0,j=0;i<n && j<m;)
+		if ((p[i+1]-p[i]&q[j+1]-q[j])>0) ans[res++]=p[++i]+q[j];
+		else ans[res++]=p[i]+q[++j];
+	for (;i<n;) ans[res++]=p[++i]+q[j];
+	for (;j<m;) ans[res++]=p[i]+q[++j];
+	return res; //[!] notice coliner point in result
+}
+//weather point p is lefter than line l
+bool onleft(point p, const line &l){return sgn(l.v&p-l.p)>0;}
 const int maxp=1001;
-Line Q[maxp<<1]; //deque
-point T[maxp<<1]; //temp ans
-//The result area can't be unlimited.
-//You can add 'inf' edges to make sure that. Then
-//if a result point is 'inf' then the real result is unlimited.
-int halfplaneInt(Line *l, int n, point *ans){
-	for (int i=0;i<n;i++) l[i].ang=l[i].v.angle();
-	sort(l,l+n);
-	int head=0,tail=0;
+line Q[maxp<<1]; //deque of lines
+point T[maxp<<1]; //deque of points(result)
+//intersection of left side half plane, return countclockwise polygon point
+//[!] The result area can't be unlimited.
+int halfplaneInt(line *l, int n, point *ans){
+	sort(l,l+n); //[!] This operation changed input
+	int head=0,tail=0; //rangeof Q:[head,tail] ; range of T: [head, tail)
 	Q[0]=l[0];
 	for (int i=1;i<n;i++){
-		while (head<tail && !onleft(l[i],T[tail-1])) tail--;
-		while (head<tail && !onleft(l[i],T[head])) head++;
+		while (head<tail && !onleft(T[tail-1],l[i])) tail--;
+		while (head<tail && !onleft(T[head],l[i])) head++;
 		Q[++tail]=l[i];
-		if (eq0(Q[tail].v*Q[tail-1].v)){
+		if (eq(Q[tail].v&Q[tail-1].v)){ //same direction
 			--tail;
-			if (onleft(Q[tail],l[i].p)) Q[tail]=l[i];
+			if (onleft(l[i].p,l[i])) Q[tail]=l[i]; //replace righter line
 		}
-		if (head<tail) 
-			T[tail-1]=lineCross(Q[tail-1].p,Q[tail-1].v,Q[tail].p,Q[tail].v);		
+		if (head<tail) //get point
+			T[tail-1]=lineInt(Q[tail-1].p,Q[tail-1].v,Q[tail].p,Q[tail].v);		
 	}
-	while (head<tail && !onleft(Q[head],T[tail])) tail--; 
+	while (head<tail && !onleft(T[tail-1],Q[head])) tail--; 
 	if (head>=tail-1) return 0;  //m<3, no available area
-	T[tail]=lineCross(Q[head].p,Q[head].v,Q[tail].p,Q[tail].v); //head cross tail
+	T[tail]=lineInt(Q[head].p,Q[head].v,Q[tail].p,Q[tail].v); //head cross tail
 	int m=0;
 	for (int i=head;i<=tail;i++) ans[m++]=T[i];
 	return m;
 }
+//half plane intersection with unlimted space judge
+int halfplaneInt_(line *l, int n, point *ans){ //[!] array l should have 4 extra space
+	l[n]=line(point(-inf,-inf),vec(1,0));
+	l[n+1]=line(point(inf,-inf),vec(0,1));
+	l[n+2]=line(point(inf,inf),vec(-1,0));
+	l[n+3]=line(point(-inf,inf),vec(0,-1));
+	int ret=halfplaneInt(l,n+4,ans);
+	for (int i=0;i<ret;i++)
+		if (fabs(ans[i].x)>inf/2 || fabs(ans[i].y)>inf/2)
+			return -1; //unlimited
+	return ret;
+}
+
+//--rotating stuck--
+
+const int maxn=100010;
+//max dis point pair on poly
+// (farthest point pair on plane)
+db polyDiam(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	p[n]=p[0];
+	int opp=1; db ans=!(p[0]-p[1]);
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[opp+1])>cross(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=max(ans, max(!(p[opp]-p[i]),!(p[opp]-p[i+1])));
+	}
+	return ans;
+}
+//min dis between parallel lines clip polygon
+db polyWidth(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	p[n]=p[0];
+	int opp=1; db ans=1e10;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[opp+1])>cross(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
+		ans=min(ans, lineDis(p[opp],p[i],p[i+1]-p[i]));
+	}
+	return ans;
+}
+//min rectangle area cover polygon
+db minRectCover(point *p0, int n0){
+	static point p[maxn];
+	int n=convex(p0,n0,p); //[!] p0 changed
+	if (n<3) return 0;
+	p[n]=p[0];
+	db ans=-1;
+	int h=1,r=1,l;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],p[h+1])-cross(p[i],p[i+1],p[h])>=0) h=(h+1)%n; //farest
+		while (dot(p[i],p[i+1],p[r+1])-dot(p[i],p[i+1],p[r])>=0) r=(r+1)%n; //rightest
+		if (i==0) l=h;
+		while (dot(p[i],p[i+1],p[l+1])-dot(p[i],p[i+1],p[l])<=0) l=(l+1)%n; //leftest
+		db t=p[i+1]-p[i]|p[i+1]-p[i];
+		db s=cross(p[i],p[i+1],p[h])*(dot(p[i],p[i+1],p[r])-dot(p[i],p[i+1],p[l]))/t; //rect area
+		//min circumference of rectangle
+		//db c=2*(cross(p[i],p[i+1],p[h])+dot(p[i],p[i+1],p[r])-dot(p[i],p[i+1],p[l]))/!(p[i+1]-p[i]);
+		if (ans<0 || ans>s) ans=s;
+	}
+	return ans;
+}
+//minimum convex hull distanse (actually what support vector machine do on plane)
+//[!] require non-cross countclockwise convex hull
+db minConvexDis(point *p, int n, point *q, int m){ 
+	p[n]=p[0]; q[n]=q[0];
+	db ans=inf; int r=0;
+	for (int i=1;i<m;i++)
+		if (cross(p[0],p[1],q[i])>cross(p[0],p[1],q[r]))
+			r=i;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
+			r=(r+1)%m;
+			ans=min(ans,segDis(p[i],p[i+1],q[r],q[r+1]));
+		}
+	}
+	return ans;
+}
+//inner common tangent line of two convex hull, O(n+m)
+//return one of tangent line (postion in input array)
+//[!] require non-corss countclockwise convex hull)
+pair<int,int> convexInnerTang(point *p, int n, point *q, int m){ 
+	p[n]=p[0]; q[n]=q[0];
+	int r=0;
+	for (int i=1;i<m;i++)
+		if (cross(p[0],p[1],q[i])>cross(p[0],p[1],q[r]))
+			r=i;
+	for (int i=0;i<n;i++){
+		while (cross(p[i],p[i+1],q[r+1])>cross(p[i],p[i+1],q[r])){
+			r=(r+1)%m;
+			if (cross(p[(i+n-1)%n],p[i],q[r])>=0 && cross(p[i],p[i+1],q[r])<0 &&
+				cross(q[(r+m-1)%m],q[r],p[i])>=0 && cross(q[r],q[r+1],p[i])<0) //change here to get another tangent line
+				return {i,r};
+		}
+	}
+	throw;
+}
 
 //---complex---
 
-//sector a->b, the cicle center is (0,0).
-db secArea(point a, point b, db r){
-	db ang=a.angle()-b.angle();
-	while (dcmp(ang)<=0) ang+=2*PI;
-	while (dcmp(ang-2*PI)>0) ang-=2*PI;
-	ang=min(ang, 2*PI-ang);
-	return r*r*ang/2;
-}
-db triArea(point p1, point p2){
-	return fabs(p1*p2)/2;
-}
+//sector a~b of radius r
+db secArea(point a, point b, db r){return r*r*angle(a,b)/2;}
+db triArea(point a, point b){return fabs(a&b)/2;}
+//intersection area of circle C and triangle P1-P2-C
 db tri_cirArea(point p1, point p2, circle c){
 	db r=c.r;
 	p1=p1-c.c; p2=p2-c.c;
-	c.c.x=c.c.y=0;
+	c.c=vec(0,0);
 	point p[2];
-	if (dcmp(p1.len()-r)<0){
-		if (dcmp(p2.len()-r)<0) return triArea(p1,p2);
-		seg_cirCross(p1,p2,c,p);
-		return triArea(p1,p[0]) + secArea(p[0],p2,r);
+	if (sgn(!p1-r)<0){ //p1 in circle
+		if (sgn(!p2-r)<0) return triArea(p1,p2);
+		segInt(p1,p2,c,p);
+		return triArea(p1,p[0])+secArea(p[0],p2,r);
 	}
-	if (dcmp(p2.len()-r)<0){
-		seg_cirCross(p1,p2,c,p);
-		return secArea(p1,p[0],r) + triArea(p[0],p2);
+	if (sgn(!p2-r)<0){ //p2 in circle
+		segInt(p1,p2,c,p);
+		return secArea(p1,p[0],r)+triArea(p[0],p2);
 	}
-	int pc=seg_cirCross(p1,p2,c,p);
-	if (pc==2) 
-		return secArea(p1,p[0],r)+triArea(p[0],p[1])+secArea(p[1],p2,r);
+	int pc=segInt(p1,p2,c,p);
+	if (pc==2) return secArea(p1,p[0],r)+triArea(p[0],p[1])+secArea(p[1],p2,r);
 	return secArea(p1,p2,r);	
 }
+//intersection area of polygon P and circle C
 db poly_cirArea(point *p, int n, circle c){
 	db ans=0;
 	for (int i=0;i<n;i++){
-		db d=dcmp((p[i]-c.c)*(p[(i+1)%n]-c.c));
+		db d=sgn(cross(c.c,p[i],p[(i+1)%n]));
 		ans+=d*tri_cirArea(p[i],p[(i+1)%n],c);
 	}
 	return fabs(ans);
 }
 
+//min circle corver point set p
 //average O(n)
-circle mincirCover(point *p0, int n){
-	static point p[100010];
-	copy(p0,p0+n,p);
-    random_shuffle(p,p+n);
+circle mincirCover(point *p, int n){
+    random_shuffle(p,p+n); //[!] This operation changed input
     circle c(p[0],0);
     for (int i=1;i<n;i++)
-        if (dcmp(dis(c.c,p[i])-c.r)>0)
-        {
+        if (sgn(!(c.c-p[i])-c.r)>0){
             c=circle(p[i],0);
             for (int j=0;j<i;j++)
-                if (dcmp(dis(c.c,p[j])-c.r)>0)
-                {
+                if (sgn(!(c.c-p[j])-c.r)>0){
                     c=circle(p[i],p[j]);
                     for (int k=0;k<j;k++)
-                        if (dcmp(dis(c.c,p[k])-c.r)>0)
+                        if (sgn(!(c.c-p[k])-c.r)>0)
                             c=circle(p[i],p[j],p[k]);
                 }
         }
     return c;
 }
 
-const int maxn=100010;
-//max dis point pair on poly
-double polyDiam(point *p0, int n0){
-	static point p[maxn];
-	int n=convex(p0,n0,p);
-	p[n]=p[0];
-	int opp=1; db ans=dis(p[0],p[1]);
-	for (int i=0;i<n;i++){
-		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
-		ans=max(ans, max(dis(p[opp],p[i]),dis(p[opp],p[i+1])));
+
+//union area of circles
+namespace Circles{
+	const int N=1010; //O(n^2log(n))
+	circle c[N];
+	db ans[N],pre[N];
+	int n;
+	//remove inside or same circles
+	void init(){ //[!] c[N] changed
+		sort(c,c+n,[](const circle &a, const circle &b){return a.c==b.c?a.r<b.r:a.c<b.c;});
+		n=unique(c,c+n)-c; //use circle::operator==
 	}
-	return ans;
-}
-//+?
-db polyWidth(point *p0, int n0){
-	static point p[maxn];
-	int n=convex(p0,n0,p);
-	p[n]=p[0];
-	int opp=1; db ans=1e10;
-	for (int i=0;i<n;i++){
-		while (area2(p[i],p[i+1],p[opp+1])>area2(p[i],p[i+1],p[opp])) opp=(opp+1)%n;
-		ans=min(ans, lineDis(p[opp],p[i],p[i+1]));
+	db arcarea(db rad, db r){return 0.5*r*r*(rad-sin(rad));}
+	//union area of circles
+	// ans[1] is union area
+	// ans[i]-ans[i+1] is k times intersection area; [!] the circles should be unique
+	db areaunion(){
+		memset(ans,0,sizeof ans);
+		vector<pair<db,int>> v; //int 1: start of section | -1: end of section
+		init(); //delete inside; [!] should NOT init() when get k-times intersection
+		for (int i=0;i<n;i++){
+			v.clear();
+			v.emplace_back(-PI,1); //default [-PI,PI] full circle
+			v.emplace_back(PI,-1); 
+			for (int j=0;j<n;j++) //label arc secions
+				if (i^j){
+					point q=c[j].c-c[i].c;
+					db d=!q, x=c[i].r, y=c[j].r;
+					if (sgn(d+x-y)<=0){ //cover by circle[j]
+						v.emplace_back(-PI,1);
+						v.emplace_back(PI,-1);
+						continue;
+					}
+					if (sgn(d-x+y)<=0) continue; //cover circle[j]
+					if (sgn(d-x-y)>0) continue; //too far
+					db base=q.ang(), ang=angle(x,d,y);
+					db a0=base-ang;	if (sgn(a0+PI)<0) a0+=2*PI;
+					db a1=base+ang; if (sgn(a1-PI)>0) a1-=2*PI;
+					v.emplace_back(a0,1);
+					if (sgn(a0-a1)>0){ //arc across 180 degree
+						v.emplace_back(PI,-1);
+						v.emplace_back(-PI,1);
+					}
+					v.emplace_back(a1,-1);
+				}
+			sort(v.begin(),v.end());
+			int cur=0;
+			for (auto &a:v){ //point
+				if (cur && sgn(a.first-pre[cur])){
+					ans[cur]+=arcarea(a.first-pre[cur],c[i].r); //arcarea
+					ans[cur]+=(c[i].angle(pre[cur])&c[i].angle(a.first))/2; //piece of center polygon area(signed)
+				}
+				cur+=a.second;
+				pre[cur]=a.first;
+			}
+		}
+		//for (int i=1;i<n;i++)
+		//	ans[i]-=ans[i+1];
+		return ans[1];
 	}
-	return ans;
 }
 
 void test(){
@@ -3655,24 +4005,24 @@ void test(){
 	cout<<a-b<<" expect -0.2 1.2\n";
 	cout<<a*2<<" expect 2.4 5\n";
 	cout<<b/2<<" expect 0.7 0.65\n";
-	cout<<(a^b)<<" expect 4.93\n";
-	cout<<a*b<<" expect -1.94\n";
-	cout<<b*a<<" expect 1.94\n";
+	cout<<(a|b)<<" expect 4.93\n";
+	cout<<(a&b)<<" expect -1.94\n";
+	cout<<(b&a)<<" expect 1.94\n";
 	cout<<(a==b)<<" expect 0\n";
 	cout<<(a==a+ep)<<" expect 1\n";
-	cout<<a.len()<<" expect 2.77308\n";
-	cout<<!a<<" expect 7.69\n";
-	cout<<(c.angle())<<" expect 1.10715\n";
-	cout<<(c.rotate(PI/2))<<" expect -2 1\n";
-	cout<<(c.rotate(-PI/2))<<" expect 2 -1\n";
+	cout<<!a<<" expect 2.77308\n";
+	cout<<(a|a)<<" expect 7.69\n";
+	cout<<(c.ang())<<" expect 1.10715\n";
+	cout<<(c.rot(PI/2))<<" expect -2 1\n";
+	cout<<(c.rot(-PI/2))<<" expect 2 -1\n";
 	cout<<c.vert()<<" expect -0.8944 0.4472\n";
-	cout<<angle(c,d)<<" expect "<<c.angle()-d.angle()<<'\n';
-	cout<<lineCross(c,vc,d,vd)<<" expect 1 2\n";
-	cout<<lineCross(d,vd,c,vc)<<" expect 1 2\n";
-	cout<<lineDis(point(0,0),d,vec(0,2.5))<<" expect 2.23607\n";
-	cout<<segDis(point(0,0),d,vec(0,2.5))<<" expect 2.23607\n";
-	cout<<segDis(point(0,5),d,vec(0,2.5))<<" expect 2.5\n";
-	cout<<lineProj(point(0,0),d,vec(4,0))<<" expect 2 2\n";
+	cout<<angle(c,d)<<" expect "<<c.ang()-d.ang()<<'\n';
+	cout<<lineInt(c,vc,d,vd)<<" expect 1 2\n";
+	cout<<lineInt(d,vd,c,vc)<<" expect 1 2\n";
+	cout<<lineDis(point(0,0),d,vec(0,2.5)-d)<<" expect 2.23607\n";
+	cout<<segDis(point(0,0),d,vec(0,2.5)-d)<<" expect 2.23607\n";
+	cout<<segDis(point(0,5),d,vec(0,2.5)-d)<<" expect 2.5\n";
+	cout<<lineProj(point(0,0),d,vec(4,0)-d)<<" expect 2 2\n";
 	
 	cout<<onLine(point(2,2),d,vec(4,0))<<" expect 1\n";
 	cout<<onSeg(point(2,2),d,vec(4,0))<<" expect 0\n";
@@ -3684,7 +4034,7 @@ void test(){
 	cout<<segCross(point(0,4),point(0,0),d,vec(0,4))<<" expect 2\n";
 	cout<<segCross(point(1,1),point(0,0),d,vec(0,4))<<" expect 0\n";
 	cout<<segCross(point(2,2),point(-1,5),d,vec(0,4))<<" expect -1\n";
-	cout<<segCross(point(0,4),point(-1,5),d,vec(0,4))<<" expect 2\n";
+	cout<<segCross(point(0,4),point(-1,5),d,vec(0,4))<<" expect -1\n";
 	
 	point ans[2];
 	circle c1(point(0,1),1),c2(point(0,0),1);
@@ -3711,11 +4061,11 @@ void test(){
 	cout<<cirTang(vec(-4,0),c1,ans)<<" expect 2\n";
 	cout<<ans[0]<<' '<<ans[1]<<" expect -1 1.73205 -1 -1.73205\n";
 	
-	cout<<cirCross(vec(-4,4),vec(4,-4),c1, ans)<<" expect 2\n";
+	cout<<lineInt(vec(-4,4),vec(4,-4),c1, ans)<<" expect 2\n";
 	cout<<ans[0]<<' '<<ans[1]<<" expect -1.414 1.414 1.414 -1.414\n";
 	
-	//cout<<seg_cirCross(vec(0,0),vec(4,0),c1)<<" expect 2 0\n";
-	//cout<<seg_cirCross(vec(4,0),vec(0,0),c1)<<" expect 2 0\n";
+	//cout<<segInt(vec(0,0),vec(4,0),c1)<<" expect 2 0\n";
+	//cout<<segInt(vec(4,0),vec(0,0),c1)<<" expect 2 0\n";
 	
 	c2=circle(point(0,-1),1);
 	point xa[4],xb[4];
@@ -3754,11 +4104,21 @@ void test(){
 	point aa[4];
 	point polyt[4]={{-1,0},{2,1},{1,0},{2,-1}};
 	cout<<convex(polyt,4,aa)<<" expect 3\n";
+	cout<<inConvex(aa,3,{0,0})<<" expect 1\n";
 	
 	cout<<mincirCover(polyt,4).c<<" expect "<<circle(poly[0],poly[1],poly[3]).c<<'\n';
 	cout<<mincirCover(polyt,4).r<<" expect "<<circle(poly[0],poly[1],poly[3]).r<<'\n';
 	
 	cout<<poly_cirArea(poly, 4, {{0,0},1})<<" expect ???\n";
+
+	{
+	using namespace Circles;
+	n=2;
+	Circles::c[0]=circle(vec(0,0),1);
+	Circles::c[1]=circle(vec(0,1),1);
+	areaunion();
+	cout<<Circles::ans[1]<<" expect 5.048156\n";
+	}
 }
 
 //cdq func for minDisPoint
@@ -3767,7 +4127,7 @@ db cdq(point *p,int l, int r){
 	if (l==r-1) return 1e12;
 	if (l==r-2) {
 		if (p[l].y>p[l+1].y) swap(p[l],p[l+1]);
-		return dis(p[l],p[l+1]);
+		return !(p[l]-p[l+1]);
 	}
 	int mid=l+r+1>>1;
 	int uc=0; Point pmid=p[mid];
@@ -3783,7 +4143,7 @@ db cdq(point *p,int l, int r){
 	inc(i,uc)
 		rep(j,i+1,uc){
 			if (use[j].y>use[i].y+d+eps) break;
-			d=min(dis(use[i],use[j]),d);
+			d=min(!(use[i]-use[j]),d);
 		}
 	rep(i,l,r) p[i]=tp[i];
 	return d;
@@ -3791,6 +4151,48 @@ db cdq(point *p,int l, int r){
 db minDisPoint(point *p, int n){
 	sort(p,p+n);
 	return cdq(p,0,n);
+}
+
+}
+
+namespace DateTime{
+
+int gettime(int h, int m, int s){
+	return h*3600+m*60+s;
+}
+
+bool isleapyear(int y){
+	//if (y<0) return isleapyear(-y-1);
+	//if (y%3200==0) return y%172800==0; 
+	return y%4==0 && y%100 || y%400==0;
+}
+
+int mm[13]={0,31,28,31,30,31,30,31,31,30,31,30,31};
+//get day diff from 0000/01/01 (BC 0001y), but require y>0
+int getday(int y, int m, int d){
+	if (m<3) y--,m+=12;
+	return (d+30*m+3*(m+1)/5+y*365+y/4-y/100+y/400)-33;
+}
+//inverse function of getday()
+void getdate(int d0, int &y, int &m, int &d){
+	int y1=(d0)/146097;
+	int y2=(d0-1-y1*146097)/36524;
+	int y3=(d0-1-y1*146097-y2*36524)/1461;
+	y=y1*400+y2*100+y3*4+(d0-1-y1*146097-y2*36524-y3*1461)/365;
+	d=d0-y*365-(y-1)/4+(y-1)/100-(y-1)/400; m=1;
+	if (y%4==0&&y%100||y%400==0) mm[2]++;
+	while (d-mm[m]>0) d-=mm[m++];
+	if (y%4==0&&y%100||y%400==0) mm[2]--;
+}
+
+//get week by date,1 for Monday
+//[!] Because 1582/10/05~1582/10/14 is not existed
+// the formula is correct after that day
+int getweek(int y, int m, int d){
+	if (m<3) y--,m+=12;
+	return (d+2*m+3*(m+1)/5+y+y/4-y/100+y/400+1)%7;
+}
+
 }
 
 namespace scannerLine{
@@ -3855,151 +4257,6 @@ void rectInt(int n){
 }
 #undef lc
 #undef rc
-}
-}
-
-namespace DLX{
-const int maxl=10000;
-//row,col: the original pos   H:row head  S:col size
-int L[maxl],R[maxl],U[maxl],D[maxl],H[maxl],S[maxl],col[maxl],row[maxl],ans[maxl];
-int siz,m;
-void pre(){
-	for (int i=0;i<=m;i++){
-		L[i]=i-1; R[i]=i+1;
-		col[i]=i;
-		U[i]=D[i]=i;
-		row[i]=-1;
-	}
-	R[m]=0; L[0]=m;
-	siz=m+1;
-	memset(H,0,sizeof(H));
-	memset(S,0,sizeof(S));
-	S[0]=maxl+1;
-}
-//!-- insert by row order first, col order second
-//!-- the start coord is (1,1), not (0,0)
-void insert(int r, int c){
-	U[siz]=U[c];
-	D[siz]=c;
-	U[D[siz]]=D[U[siz]]=siz;
-	if (H[r]){
-		L[siz]=L[H[r]];
-		R[siz]=H[r];
-		L[R[siz]]=R[L[siz]]=siz;
-	}
-	else H[r]=L[siz]=R[siz]=siz;
-	row[siz]=r; col[siz]=c;
-	S[c]++;
-	siz++;
-}
-//remove a col affected rows
-void del(int c){
-	L[R[c]]=L[c];
-	R[L[c]]=R[c];
-	for (int i=D[c];i!=c;i=D[i])
-		for (int j=R[i];j!=i;j=R[j]){
-			U[D[j]]=U[j];
-			D[U[j]]=D[j];
-			S[col[j]]--;
-		}
-}
-void back(int c){
-	for (int i=D[c];i!=c;i=D[i])
-		for (int j=R[i];j!=i;j=R[j]){
-			U[D[j]]=D[U[j]]=j;
-			S[col[j]]++;
-		}
-	R[L[c]]=L[R[c]]=c;
-}
-//ans[k]: selected row;  H[ans[k]]: selected line head
-bool dfs(int k){
-	if (R[0]==0) 
-		return 1;
-	int mins=1e8, c=0;
-	for (int t=R[0];t;t=R[t])
-		if (S[t]<mins)
-			mins=S[t],c=t;
-	if (!c) return 0;
-	del(c);
-	for (int i=D[c];i!=c;i=D[i]){
-		ans[k]=row[i];
-		for (int j=R[i];j!=i;j=R[j]) del(col[j]);
-		if (dfs(k+1)) return 1;
-		for (int j=L[i];j!=i;j=L[j]) back(col[j]);
-	}
-	back(c);
-	return 0;
-}
-//9x9 sudoku solver
-//first 81: a pos is filled; next 81: a row filled 1~9; next 81: col filled; last 81:square filled
-int out[9][9];
-void solve(int a[9][9]){
-	m=324;
-	pre();
-	int n=1;
-	for (int i=0;i<9;i++)
-		for (int j=0;j<9;j++)
-			if (a[i][j]){
-				insert(n,i*9+j+1); 
-				insert(n,81+i*9+a[i][j]); 
-				insert(n,162+j*9+a[i][j]); 
-				insert(n,243+(i/3*3+j/3)*9+a[i][j]); 
-				n++;
-			}
-			else{
-				for (int k=1;k<=9;k++){
-					insert(n,i*9+j+1); 
-					insert(n,81+i*9+k); 
-					insert(n,162+j*9+k); 
-					insert(n,243+(i/3*3+j/3)*9+k); 
-					n++;
-				}
-			}
-	dfs(0);
-	for (int i=0;i<81;i++){
-		int p=col[H[ans[i]]]-1, x=(col[R[H[ans[i]]]]-1)%9+1;
-		out[p/9][p%9]=x;
-	}
-	for (int i=0;i<9;i++,cout<<'\n')
-		for (int j=0;j<9;j++)
-			cout<<out[i][j]<<' ';
-}
-
-int n0,sum;
-void dfs_nqueen(int k){
-	if (R[0]>n0){ //slashs don't require filled 
-		sum++;
-		return;
-	}
-	int mins=1e8, c=0;
-	for (int t=R[0];t<=n0*2;t=R[t])
-		if (S[t]<mins)
-			mins=S[t],c=t;
-	if (!c) return;
-	del(c);
-	for (int i=D[c];i!=c;i=D[i]){
-		for (int j=R[i];j!=i;j=R[j]) del(col[j]);
-		dfs_nqueen(k+1);
-		for (int j=L[i];j!=i;j=L[j]) back(col[j]);
-	}
-	back(c);
-}
-//only for demo, this algo is not faster than brute force
-//bit aglo is fastest 
-void nqueens(int n){
-	int l=1; n0=n; m=n*6-2; sum=0;
-	pre();
-	for (int i=0;i<n;i++)
-		for (int j=0;j<n;j++){
-			insert(l,i+1);
-			insert(l,n+j+1);
-			insert(l,n*2+i+j+1);
-			insert(l,n*5+i-j-1);
-			l++;
-		}
-	dfs_nqueen(0);
-	cout<<sum<<'\n';
-}
 }
 
 //O(nlogn)
