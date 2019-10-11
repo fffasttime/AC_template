@@ -78,7 +78,7 @@ int MF_isap(){
 	while (ql<qr){ //optimize, bfs label at first
 		int u=qu[ql++];
 		for (int i=head[u],v=ed[i].to;i;i=ed[i].nxt,v=ed[i].to)
-			if (!a[v]) ++num[a[v]=a[u]+1],qu[++qr]=v;
+			if (!a[v]) ++num[a[v]=a[u]+1],qu[qr++]=v;
 	}
 	ll ret=isap_aug(s,INF);
 	while (a[s]<=n) ret+=isap_aug(s,INF);

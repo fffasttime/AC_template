@@ -566,6 +566,941 @@ void argmin_SimulateAnneal(double t0=5000, double tend=1e-6, double delta=0.99){
 }
 }
 
+namespace Polynomial{
+//Attention: n indicates number of coeffs, so deg F[x]=n-1, not n
+namespace FFT
+{
+typedef complex<double> cd;
+const int maxl=(1<<20)+1;
+const double pi=3.14159265358979;
+int rev[maxl];
+void get_rev(int bit){
+	for (int i=0;i<(1<<bit);i++)
+		rev[i]=(rev[i>>1]>>1)|((i&1)<<(bit-1));
+}
+void fft(cd a[], int n, int dft){
+	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
+	for (int s=1;s<n;s<<=1){
+		cd wn=exp(cd(0,pi*dft/s));
+		for (int j=0;j<n;j+=s<<1){
+			cd wnk(1,0);
+			for (int k=j;k<j+s;k++){
+				cd x=a[k],y=wnk*a[k+s];
+				a[k]=x+y;
+				a[k+s]=x-y;
+				wnk*=wn;
+			}
+		}
+	}
+	if (dft==-1) for (int i=0;i<n;i++) a[i]/=n;
+}
+ll G=3,P=998244353;
+void ntt(ll *a, int n, int dft){
+	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
+	for (int s=1;s<n;s<<=1){
+		ll wn=qpow(G,dft==1?(P-1)/s/2:P-1-(P-1)/s/2,P);
+		for (int j=0;j<n;j+=s<<1){
+			ll wnk=1;
+			for (int k=j;k<j+s;k++){
+				ll x=a[k],y=wnk*a[k+s]%P;
+				a[k]=(x+y)%P; //merge
+				a[k+s]=(x-y+P)%P;
+				wnk=wnk*wn%P;
+			}
+		}
+	}
+	if (dft==-1) {
+		ll inv=qpow(n,P-2,P);
+		for (int i=0;i<n;i++) a[i]=a[i]*inv%P;
+	}
+}
+void conv(cd *fa, cd *fb, int s, cd *ret){
+	static cd a[maxl],b[maxl];
+	memcpy(a,fa,sizeof(cd)*s); memcpy(b,fb,sizeof(cd)*s);
+	fft(a,s,1); fft(b,s,1);
+	for (int i=0;i<s;i++) a[i]*=b[i];
+	fft(a,s,-1);
+	memcpy(ret,a,sizeof(cd)*s);
+}
+void conv(ll *fa, ll *fb, int s, ll *ret){
+	static ll a[maxl],b[maxl];
+	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
+	ntt(a,s,1); ntt(b,s,1);
+	for (int i=0;i<s;i++) a[i]*=b[i];
+	ntt(a,s,-1);
+	memcpy(ret,a,sizeof(ll)*s);
+}
+int ans[maxl],_;
+char s1[100010],s2[100010];
+//fast mul
+void base10_mul(){
+	static cd a[maxl],b[maxl];
+	scanf("%s%s",s1,s2);
+	int l1=strlen(s1),l2=strlen(s2);
+	int s=2,bit=1;
+	for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
+	for (int i=0;i<l1;i++) a[i]=s1[l1-i-1]-'0';
+	for (int i=0;i<l2;i++) b[i]=s2[l2-i-1]-'0';
+	conv(a,b,s,a);
+	for (int i=0;i<s;i++) cout<<a[i]<<' '; cout<<'\n';
+	for (int i=0;i<s;i++){
+		ans[i]+=a[i].real();
+		ans[i+1]+=ans[i]/10;
+		ans[i]%=10;
+	}
+	int i;
+	for (i=l1+l2;!ans[i]&&i>=0;i--);
+	if (i==-1) printf("0");
+	for (;i>=0;i--) printf("%d",ans[i]);
+	putchar('\n');
+}
+
+//C[x]=A[x]*B[x], convolve only
+void poly_mul(ll *A, ll *B, int n, ll *C){
+	int s=2,bit=1;
+    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
+    fill(A+n,A+s,0); fill(B+n,B+s,0);
+    get_rev(bit);
+    conv(A,B,s,C);
+}
+void poly_add(ll *A, ll *B, int n, ll *C){
+	for (int i=0;i<n;i++) 
+		C[i]=(A[i]+B[i])%P;
+}
+void poly_sub(ll *A, ll *B, int n, ll *C){
+	for (int i=0;i<n;i++) 
+		C[i]=(A[i]-B[i]+P)%P;
+}
+
+#ifdef NO_COMPILE  //3 module ntt version
+const ll p=1000000007,P1=1004535809,P2=998244353,P3=469762049;
+void poly_mul(ll *A, ll *B, int n, ll *C){
+	static ll res[3][maxl];
+	int s=2,bit=1;
+    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
+    get_rev(bit);
+    conv<P1>(A,B,n,res[0]);
+    conv<P2>(A,B,n,res[1]);
+    conv<P3>(A,B,n,res[2]);
+    ll M=P1*P2;
+    for (int i=0;i<s;i++){ //merge
+    	ll A=(qmul(res[0][i]*P2%M,inv(P2%P1,P1),M)+
+			qmul(res[1][i]*P1%M,inv(P1%P2,P2),M))%M;
+		ll K=(res[2][i]-A%P3+P3)*inv(M%P3,P3)%P3;
+		C[i]=(qmul(K%p,M%p,p)+A)%p;
+    }
+}
+//input A[x], A[x]*B[x]=1 (mod x^n)
+void poly_inv(ll *A, ll *B, int n){
+    if (n==1) {B[0]=qpow(A[0],p-2,p); return;} //constant element
+    poly_inv(A,B,n+1>>1); //divide
+    int s=2,bit=1;
+    for (bit=1;s<n<<1;bit++)s<<=1; //size n*2
+    static ll ta[maxl];//A(x)((2-B(x)A(x))B(x))=1(mod x^2)
+    poly_mul(A,B,n,ta);
+    for (int i=1;i<s;i++) ta[i]=p-ta[i];
+    ta[0]=(2+p-ta[0])%p;
+    poly_mul(ta,B,n,B);
+    //for (int i=0;i<s;i++)cout<<B[i]<<' '; cout<<'\n';
+}
+#endif
+
+//input A[x], A[x]*B[x]=1 (mod x^n)
+void poly_inv(ll *A, ll *B, int n){
+	if (n==1) {B[0]=qpow(A[0],P-2,P); return;} //constant element
+	poly_inv(A,B,n+1>>1); //divide
+    int s=2,bit=1;
+    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
+    get_rev(bit);
+    static ll ta[maxl];
+    copy(A,A+n,ta); fill(ta+n,ta+s,0);
+	ntt(ta,s,1); ntt(B,s,1);
+    for (int i=0;i<s;i++) //A(x)(2B(x)-B(x)^2A(x))=1(mod x^2)
+    	B[i]=(2-ta[i]*B[i]%P+P)%P*B[i]%P;  
+    ntt(B,s,-1); fill(B+n,B+s,0);
+    //for (int i=0;i<s;i++)cout<<B[i]<<' '; cout<<'\n';
+}
+
+//A[x]=Q[x]*B[x]+R[x], (deg R[x]<deg B[x], deg Q[x]<n-m+1)
+void poly_div(ll *A, ll *B, int n, int m, ll *Q, ll *R){
+	//conclusion: Qr[x] = Ar[x] * poly_inv(Br[x]) (mod x^(n-m+1))
+	static ll X[maxl], Y[maxl], tmp[maxl];
+	memset(X,0,sizeof X); memset(Y,0,sizeof Y); memset(tmp,0,sizeof tmp);
+	copy(A,A+n,X); copy(B,B+m,Y);
+	reverse(X,X+n); reverse(Y,Y+m);
+	poly_inv(Y,tmp,n-m+1); 
+	poly_mul(X,tmp,n-m+1,Q);
+	fill(Q+n-m+1,Q+n,0), reverse(Q,Q+n-m+1);
+    copy(A,A+n,X), copy(B,B+m,Y);
+    poly_mul(Y,Q,n,tmp), poly_sub(X,tmp,n,R);
+	fill(R+m-1,R+n,0);
+}
+
+//B[x]=intergrate A[x]dx,  deg B[x] = deg A[x] + 1
+void poly_int(ll *A, ll *B, ll n){
+	B[0]=0; //constant C
+	for (int i=1;i<=n;i++)
+		B[i]=A[i-1]*qpow(i,P-2,P)%P;
+}
+//B[x]=A'[x],  deg B[x] = deg A[x] - 1
+void poly_deriv(ll *A, ll *B, ll n){
+	B[n-1]=0;
+	for (int i=0;i<n-1;i++)
+		B[i]=A[i+1]*(i+1)%P;
+}
+
+//B[x]=ln A[x]=int(B'[x])=int(A'[x]/A[x])  (mod x^n)
+void poly_ln(ll *A, ll *B, ll n){
+	static ll X[maxl], Y[maxl], tmp[maxl];
+	memset(X,0,sizeof X); memset(Y,0,sizeof Y); memset(tmp,0,sizeof tmp);
+	copy(A,A+n,X); poly_deriv(X,Y,n); 
+	poly_inv(X,tmp,n); copy(tmp,tmp+n,X); 
+	poly_mul(X,Y,n,tmp); poly_int(tmp,B,n);
+}
+
+//Fnew[x]=Fb[x](1-ln(Fb[x])+A[x]), O(nlogn)
+void poly_exp(ll *A, ll *B, int n) {
+    if (n==1) {B[0]=1;return;}
+    static ll tmp[maxl]; memset(tmp,0,sizeof tmp);
+    poly_exp(A,B,n+1>>1);fill(B+(n+1>>1),B+n,0);
+    poly_ln(B,tmp,n); poly_sub(A,tmp,n,tmp);
+    poly_mul(tmp,B,n,tmp); poly_add(B,tmp,n,B);
+}
+
+//B[x]=sqrt(A[x])=exp(0.5*ln(A[x]))
+void poly_sqrt(ll *A, ll *B, int n) {
+    static ll tmp[maxl]; memset(tmp,0,sizeof tmp);
+	poly_ln(A,tmp,n);
+	for (int i=0;i<n;i++) tmp[i]=tmp[i]*qpow(2,P-2,P)%P;
+    poly_exp(tmp,B,n);
+}
+
+//deleted, please use poly_mul(3 module version) instead
+const ll P1=1004535809,P2=998244353,P3=469762049;
+ll res[3][maxl];
+//conv a sequence with mod p, while p<P1*P2*P3
+void conv_mod(){
+	static ll a[maxl],b[maxl];
+	int l1,l2; ll p;
+    rd(l1); rd(l2); l1++; l2++;
+    int s=2,bit=1;
+    for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
+	get_rev(bit);
+    int r; rd(r); p=r;
+    for (int i=0;i<l1;i++) rd(r),a[i]=r;
+    for (int i=0;i<l2;i++) rd(r),b[i]=r;
+    G=3,P=P1; conv(a,b,s,res[0]);
+    G=3,P=P2; conv(a,b,s,res[1]);
+    G=3,P=P3; conv(a,b,s,res[2]);
+    ll M=P1*P2;
+    for (int i=0;i<l1+l2-1;i++){ //merge
+    	//printf("%lld %lld %lld \n",res[0][i],res[1][i],res[2][i]);
+    	ll A=(qmul(res[0][i]*P2%M,inv(P2%P1,P1),M)+
+			qmul(res[1][i]*P1%M,inv(P1%P2,P2),M))%M;
+		ll K=(res[2][i]-A%P3+P3)*inv(M%P3,P3)%P3;
+		//cout<<A<<' '<<K<<' ';
+		printf("%lld ", (qmul(K%p,M%p,p)+A)%p);
+    }
+}
+} //namespace FFT
+
+const int maxn=2010;
+ll x[maxn],y[maxn];
+int n;
+//O(n^2) get single point value
+//if xi between 1~n, we can optimize it to O(n)
+//if xi not in 1~n, we can still preprocess PIj (ki-x[j]+p)%p, 
+//  then get multi point value in O(max(n^2,nm))
+ll LangrangeInter(ll k, ll p){
+    ll sum=0;
+    for (int i=0;i<n;i++){
+        ll s0=1;
+        for (int j=0;j<n;j++)
+            if (i!=j) s0=s0*(x[i]-x[j]+p)%p;
+        s0=qpow(s0,p-2,p);
+        for (int j=0;j<n;j++)
+            if (i!=j) s0=s0*(k-x[j]+p)%p;
+        sum=(sum+y[i]*s0)%p;
+    }
+	return sum;
+}
+
+namespace FWT{
+int N,P,inv2;
+const int maxl=1<<18+1;
+void fwt_or(int *a,int opt){
+    for(int i=1;i<N;i<<=1)
+        for(int p=i<<1,j=0;j<N;j+=p)
+            for(int k=0;k<i;++k)
+                if(opt==1) a[i+j+k]=(a[j+k]+a[i+j+k])%P;
+                else a[i+j+k]=(a[i+j+k]+P-a[j+k])%P;
+}
+void fwt_and(int *a,int opt){
+    for(int i=1;i<N;i<<=1)
+        for(int p=i<<1,j=0;j<N;j+=p)
+            for(int k=0;k<i;++k)
+                if(opt==1) a[j+k]=(a[j+k]+a[i+j+k])%P;
+                else a[j+k]=(a[j+k]+P-a[i+j+k])%P;
+}
+void fwt_xor(int *a,int opt){
+    for(int i=1;i<N;i<<=1)
+        for(int p=i<<1,j=0;j<N;j+=p)
+            for(int k=0;k<i;++k){
+                int X=a[j+k],Y=a[i+j+k];
+                a[j+k]=(X+Y)%P,a[i+j+k]=(X+P-Y)%P;
+                if(opt==-1) a[j+k]=(ll)a[j+k]*inv2%P,a[i+j+k]=(ll)a[i+j+k]*inv2%P;
+            }
+}
+void bit_conv(int *fa, int *fb, int *c){
+	static int a[maxl],b[maxl];
+	memcpy(a,fa,sizeof(int)*N); memcpy(b,fb,sizeof(int)*N);
+	fwt_xor(a,1); fwt_xor(b,1);
+	for (int i=0;i<N;i++) a[i]=a[i]*b[i]%P;
+	fwt_xor(a,-1);
+	memcpy(c,a,sizeof(int)*N);
+}
+}
+}
+
+namespace LinAlg{
+const int maxn=1010,maxm=1010;
+double a[maxn][maxm],b[maxn][maxn],ans[maxn];
+int n,m;
+const int eps=1e-7;
+//require m=n+1 and only one solution
+bool gauss_solve(){
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (maxl!=i) swap(a[i],a[maxl]);
+		if (fabs(a[i][i])<eps) return 0; //no solution or infinity solution 
+		for (int j=i+1;j<n;j++){
+			double r=a[j][i]/a[i][i];
+			for (int k=i;k<m;k++)
+				a[j][k]-=r*a[i][k];
+		}
+		double r=a[i][i];
+		for (int k=i;k<m;k++) a[i][k]/=r;
+	}
+	for (int i=n-1;i>=0;i--){
+		ans[i]=a[i][n];
+		for (int j=i+1;j<n;j++)
+			ans[i]-=a[i][j]*ans[j];
+	}
+	return 1;
+}
+//n*n matrix
+bool matinv(){
+	memset(b,0,sizeof(b));
+	for (int i=0;i<n;i++) b[i][i]=1;	
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]),swap(b[i],b[maxl]);
+		if (fabs(a[i][i])<eps) return 0; //No trivil
+		double r=a[i][i];
+		for (int k=0;k<n;k++) a[i][k]/=r,b[i][k]/=r; //k start from 0
+		for (int j=i+1;j<n;j++){
+			double r=a[j][i]/a[i][i];
+			for (int k=0;k<n;k++) //k start from 0
+				a[j][k]-=r*a[i][k], b[j][k]-=r*b[i][k];
+		}
+	}
+	return 1;
+}
+double det(){
+	double ans=1;
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
+		if (fabs(a[i][i])<eps) return 0;
+		for (int j=i+1;j<n;j++){
+			double r=a[j][i]/a[i][i];
+			for (int k=i;k<n;k++)
+				a[j][k]-=r*a[i][k];
+		}
+	}
+	for (int i=0;i<n;i++) ans*=a[i][i];
+	return ans;
+}
+int matrank(){
+	int l=0; //real line
+	for (int i=0;i<m;i++){ //i: col start pos
+		int maxl=l;
+		for (int j=l+1;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (l!=maxl) swap(a[l],a[maxl]);
+		if (fabs(a[l][i])<eps) continue;
+		for (int j=l+1;j<n;j++){
+			double r=a[j][i]/a[l][i];
+			for (int k=i;k<m;k++)
+				a[j][k]-=r*a[i][k];
+		}
+		l++;
+	}
+	return l;
+}
+const ll p=19260817; //const is faster than normal variable
+//int det with mod
+//used by Matrix-Tree theorem
+//M-T theo: a[i][i]=deg i, a[i][j]=-cnt(i->j), n=|vertex|-1
+ll detint(ll **a){
+	ll ans=1;
+	for (int i=0;i<n;i++) for (int j=0;j<n;j++) if (a[i][j]<0) a[i][j]+=p;
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
+		if (i!=maxl) swap(a[i],a[maxl]), ans=p-ans;
+		if (a[i][i]==0) return 0;
+		ans=ans*a[i][i]%p;   //[i] Here update ans before set a[i][i] to 1
+		int v=inv(a[i][i],p);
+		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
+		for (int j=i+1;j<n;j++){
+			ll r1=a[j][i];
+			if (!r1) continue;
+			for (int k=i;k<n;k++)
+				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
+		}
+	}
+	return ans;
+}
+//matinv with mod
+//require m=2*n, result is a[i][(0..n-1)+n]
+bool matinv_int(ll **a){
+	m=2*n;
+	//a[i][(0..n-1)+n]=0; //set to 0 when necessary
+	for (int i=0;i<n;i++) a[i][i+n]=1;	
+	for (int i=0;i<n;i++){
+		int maxl=i;
+		for (int j=i;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
+		if (i!=maxl) swap(a[i],a[maxl]);
+		if (a[i][i]==0) return 0;
+		int v=inv(a[i][i],p);
+		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
+		for (int j=0;j<n;j++){
+			if (!a[j][i] || j==i) continue;
+			ll r1=a[j][i];
+			for (int k=i;k<m;k++)
+				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
+		}
+	}
+	return 1;
+}
+#ifdef NO_COMPILE
+int n,m,p;
+//solve linear equ in module p
+//not require m=n+1, get a possible solution ans[0..m-1)
+bool gauss_solve_int(){  //similar as matrank
+	int l=0; //real line
+	for (int i=0;i<m;i++){ //i: col start pos
+		int maxl=l;
+		for (int j=l;j<n;j++)
+			if (a[j][i]) {maxl=j;break;}
+		if (maxl!=l) swap(a[l],a[maxl]);
+		if (!a[l][i]) continue; //next col
+		int v=inv(a[l][i],p);
+		for (int j=i;j<m;j++) a[l][j]=a[l][j]*v%p;
+		for (int j=l+1;j<n;j++){
+			if (!a[j][i]) continue;
+			int r1=a[j][i];
+			for (int k=i;k<m;k++)
+				a[j][k]=(a[j][k]-r1*a[l][k]%p+p)%p;
+		}
+		l++;
+	} //now l is rank of matrix
+	int last=m-1,cur;
+	for (int i=l-1;i>=0;i--){
+		for (cur=0;cur<m-1 && !a[i][cur];cur++); //first no zero column
+		int t=a[i][m-1]; 
+		for (int j=last;j<m-1;j++) t=(t-a[i][j]*ans[j]%p+p)%p;
+		for (last--;last>cur;last--) //any solution, set to 0
+			ans[last]=0; //,t=(t-a[i][j]*ans[last]%p+p)%p; when ans[last] is not 0
+		if (cur==m-1 && t) return 0; //no solution
+		ans[cur]=t; //a[i][cur]=1, so ans[cur]=t
+		last=cur;
+	}
+	return 1;
+}
+#endif
+}
+
+//-----------------String Algo----------------------
+
+namespace StringHash{
+//double module hash
+typedef unsigned long long ll;
+const ll m1=1000000007;
+const int maxn=1000010;
+ll h1[maxn],h2[maxn],b1[maxn],b2[maxn];
+void pre(){
+	b1[0]=b2[0]=1;
+	inc(i,maxn-1)
+		b1[i+1]=b1[i]*131%m1,
+		b2[i+1]=b2[i]*137;
+}
+void gethash(char *s, int l){
+	h1[l]=h2[l]=0;
+	dec(i,l){
+		h1[i]=(h1[i+1]*131+s[i])%m1;
+		h2[i]=h2[i+1]*137+s[i];
+		//cout<<h1[i]<<' '<<b1[i]<<'\n';
+	}
+}
+//get substring [l,r) hash value
+pair<ll,ll> substr(int l, int r){
+	ll r1=h1[l]+m1-h1[r]*b1[r-l]%m1; if (r1>=m1) r1-=m1;
+	ll r2=h2[l]-h2[r]*b2[r-l];
+	return {r1,r2};
+}
+}
+
+namespace KMP{
+const int maxn=1000010;
+
+int kmp[maxn];
+//s is a short partten string
+char s[maxn]; int sl; 
+void getkmp(){
+	int j=0,k=-1;
+	kmp[0]=-1;
+	while (j<sl)
+		if (k==-1 || s[j]==s[k])
+			kmp[++j]=++k;
+		else
+			k=kmp[k];
+}
+int kmp_idx(char *t, int tl){
+	int i=0, j=0;
+	while (i<sl && j<tl)
+		if (i==-1 || s[i]==t[j])
+			i++,j++;
+		else
+			i=kmp[i];
+	if (i==sl) return j-sl;
+	else return -1;
+}
+int kmp_cnt(char *t, int tl){
+	int i=0, j=0, cnt=0;
+	while (j<tl){
+		if (i==-1 || s[i]==t[j])
+			i++,j++;
+		else
+			i=kmp[i];
+		if (i==sl) cnt++;
+	}
+	return cnt;
+}
+}
+//!-- untested
+//extend KMP
+//extend[i]: LCP lenth between s1[i..l1] and s2
+namespace E_KMP{
+const int N=100010;
+int next[N],extend[N];
+void getnext(char *str){
+    int i=0,j,po,len=strlen(str);
+    next[0]=len;
+    while(str[i]==str[i+1] && i+1<len) i++; next[1]=i; //calc next[1]
+    po=1;
+    for(i=2;i<len;i++)
+        if(next[i-po]+i < next[po]+po)
+            next[i]=next[i-po];
+        else{
+            j = next[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && str[j]==str[j+i]) j++; next[i]=j;
+            po=i;
+        }
+}
+void exkmp(char *s1,char *s2){
+    int i=0,j,po,len=strlen(s1),l2=strlen(s2);
+    getnext(s2);
+    while(s1[i]==s2[i] && i<l2 && i<len) i++; extend[0]=i;
+    po=0;
+    for(i=1;i<len;i++)
+        if(next[i-po]+i < extend[po]+po)
+            extend[i]=next[i-po];
+        else //continue try match after e[po]+po
+        {
+            j = extend[po]+po-i;
+            if(j<0) j=0;
+            while(i+j<len && j<l2 && s1[j+i]==s2[j]) j++; extend[i]=j;
+            po=i; //update po
+        }
+}
+}
+
+namespace ACAM{
+const int maxn=100000,alpha=26; //maxn >= sigma len(si)
+int ch[maxn][alpha],val[maxn],fail[maxn],lbl[maxn],len[maxn],pc=0;
+int cnt[1000]; //str appear times, first element is 1
+int strc=0;
+void clear(){
+	pc=0; strc=0;
+	memset(ch,0,sizeof(ch));
+	memset(fail,0,sizeof(fail));
+	memset(val,0,sizeof(val));
+	memset(lbl,0,sizeof(lbl));
+}
+//Trie construct
+void ins(char *s){
+	int l=strlen(s), cur=0;
+	for (int i=0;i<l;i++){
+		int v=s[i]-'a';
+		if (!ch[cur][v]) ch[cur][v]=++pc;
+		cur=ch[cur][v];
+		len[cur]=i+1;
+	}
+	strc++;
+	lbl[cur]=strc;
+	val[cur]++;
+}
+int qu[maxn];
+//fail edge add
+void build(){
+	int qh=0,qt=0;
+	for (int i=0;i<alpha;i++)
+		if (ch[0][i]) fail[ch[0][i]]=0,qu[qt++]=ch[0][i];
+	while (qh<qt){
+		int u=qu[qh];qh++;
+		for (int i=0;i<alpha;i++)
+			if (ch[u][i])
+				fail[ch[u][i]]=ch[fail[u]][i],qu[qt++]=ch[u][i];
+			else
+				ch[u][i]=ch[fail[u]][i]; //opt, move to fail auto. Attention: the multi fail jump will be emitted
+	}
+}
+//count how many mode str appeared in s as substr
+int appear(char *s){
+	int l=strlen(s),cur=0,ans=0;
+	for (int i=0;i<l;i++){
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t && ~val[t];t=fail[t]) //the label be sure O(n)
+			ans+=val[t],val[t]=-1;
+	}
+	return ans;
+}
+//count each mode str in s
+//[!] worst O(n^2), a better way is dp on fail tree
+void cntall(char *s){
+	int l=strlen(s),cur=0;
+	memset(cnt,0,sizeof(cnt));
+	for (int i=0;i<l;i++){
+		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
+		for (int t=cur;t;t=fail[t])
+			cnt[lbl[t]]++;
+	}
+}
+}
+
+namespace SA{
+//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a'
+//t1,t2,c: temp array, h: height(LCP of sa[i] and sa[i-1])
+int t1[N],t2[N],sa[N],h[N],rk[N],c[N],a[N];
+int n,m;
+void calcsa(){
+	int *x=t1,*y=t2,p=0,f=0;
+	icc(i,m) c[i]=0;        
+	icc(i,n) c[x[i]=a[i]]++;  //first char sort
+	icc(i,m) c[i]+=c[i-1];
+	dcc(i,n) sa[c[x[i]]--]=i; //pos of ith first char
+	for (int i=1;i<=n && p<=n;i<<=1){
+		p=0;
+		rpp(j,n-i+1,n) y[++p]=j;  //remain part
+		icc(j,n) if (sa[j]>i) y[++p]=sa[j]-i; //main part
+		icc(j,m) c[j]=0;
+		icc(j,n) c[x[y[j]]]++;
+		icc(i,m) c[i]+=c[i-1];
+		dcc(j,n) sa[c[x[y[j]]]--]=y[j]; //sort, use dcc because sort should be stable
+		swap(x,y);x[sa[1]]=p=1; 
+		rpp(j,2,n) x[sa[j]]=y[sa[j]]==y[sa[j-1]]&&y[sa[j]+i]==y[sa[j-1]+i]?p:++p; //refill key
+		m=p;
+	}
+	icc(i,n) rk[sa[i]]=i;
+	icc(i,n){ //get height, O(n)
+		int j=sa[rk[i]-1];
+		if (f) f--; while (a[i+f]==a[j+f]) f++;
+		h[rk[i]]=f;
+	}
+}
+
+char s0[N];
+int main(){
+	scanf("%s",s0); int l=strlen(s0);
+	inc(i,l) a[++n]=s0[i]-' ';
+	m=200;
+	calcsa();
+	icc(i,n) printf("%d ",sa[i]);
+	return 0;
+}
+}
+
+namespace SAM{
+const int maxn=100010,alpha=26;
+
+//max state cnt: 2*strlen-1
+//max transfer cnt: 3*strlen-4
+struct Node{
+	int l,num; bool vis;
+	Node *p, *tr[alpha];
+	//vector<Node *> ch;
+	void set(int _l){l=_l;memset(tr,0,sizeof(tr));p=0;num=1;vis=0;/*ch.clear();*/}
+}nodes[maxn<<1];
+int nodec;
+Node *root;
+Node *open(int l){
+	nodes[nodec++].set(l);
+	return nodes+nodec-1;
+}
+void build(char *s, int l){
+	Node *cur;
+	cur=root=open(0);
+	for (int i=0;i<l;i++){
+		int x=s[i]-'a';
+		Node *p=cur;
+		cur=open(i+1);
+		for (;p && !p->tr[x];p=p->p)
+			p->tr[x]=cur;
+		if (!p) cur->p=root;
+		else{
+			Node *q=p->tr[x];
+			if (p->l+1==q->l) cur->p=q;
+			else{
+				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
+				q->p=r; cur->p=r; r->num=0;
+				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
+			}
+		}
+	}
+}
+//get substr last position
+int pos(Node *u, char *s){
+	if (*s==0) return u->l;
+	if (!u->tr[*s-'a']) return -1;
+	return pos(u->tr[*s-'a'],s+1);
+}
+
+int t[maxn],r[maxn]; //t:temp, r:rank(ith element pos)
+//init |right(s)| before cnt
+void initnum(int s0l){
+	rep(i,0,s0l+1) t[i]=0;
+	inc(i,nodec) t[nodes[i].l]++;
+	rep(i,1,s0l+1) t[i]+=t[i-1];
+	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
+	per(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
+}
+//count substr
+int cnt(Node *u, char *s){
+	if (*s==0) return u->num;
+	if (!u->tr[*s-'a']) return 0;
+	return cnt(u->tr[*s-'a'],s+1);
+}
+// longest substring
+int lcs(char *x1){
+	int lcs=0, ans=0, xl=strlen(x1);
+	Node *p=root;
+	inc(i,xl){
+		int x=x1[i]-'a';
+		if (p->tr[x]){
+			lcs++;
+			p=p->tr[x];
+			ans=max(ans,lcs);
+			continue;
+		}
+		for (;p && !p->tr[x];p=p->p);
+		if (!p) p=root,lcs=0;
+		else{
+			lcs=p->l+1;
+			p=p->tr[x];
+		}
+		ans=max(ans,lcs);
+	}
+	return ans;
+}
+}
+
+//mulit-str SAM
+namespace GSAM{
+const int maxn=200010;
+struct Node{
+	int l, num, las, vis;
+	Node *p;
+	map<int,Node*> tr; //more time, less memory
+	//int tr[26];
+}nodes[maxn<<1];
+int nodec;
+Node *open(int l){
+	nodes[nodec++].l=l;
+	return nodes+nodec-1;
+}
+Node *root=open(0);
+void build(int *s, int l){
+	Node *cur=root;
+	for (int i=0;i<l;i++){
+		int x=s[i];
+		if (cur->tr.count(x)){  //transfer existed
+			cur=cur->tr[x];
+			continue;
+		}
+		Node *p=cur;
+		cur=open(i+1);
+		for (;p && !p->tr.count(x);p=p->p)
+			p->tr[x]=cur;
+		if (!p) cur->p=root;
+		else{
+			Node *q=p->tr[x];
+			if (p->l+1==q->l) cur->p=q;
+			else{
+				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
+				q->p=r; cur->p=r; r->num=0;
+				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
+			}
+		}
+	}
+}
+int len[200010],tot;
+vector<int> str[200010];
+int ts[200010];
+int ans[200010];
+//calc how many mode str appear in each query
+void upd1(Node *u, int col){ 
+	for (;u->las!=col && u!=root;u=u->p)
+		u->las=col, u->num++;
+}
+//calc ecah mode str appear how many query
+void upd2(Node *u, int col){ 
+	for (;u->las!=col && u!=root;u=u->p)
+		u->las=col,ans[col]+=u->vis;
+}
+//n: ptn str, m: query str
+int main(){
+	int n,m; cin>>n>>m;
+	for (int i=0;i<n;i++){
+		++tot;
+		scanf("%d", len+tot);
+		for (int j=0;j<len[tot];j++){
+			scanf("%d",ts+j);
+			str[tot].push_back(ts[j]);
+		}
+		build(ts,len[tot]);
+	}
+	for (int i=1;i<=tot;i++){
+		Node *cur=root;
+		for (int j=0;j<len[i];j++)
+			cur=cur->tr[str[i][j]],
+			upd1(cur,i);
+	}
+	for (int i=0;i<m;i++){
+		int l,x; bool flag=1;
+		scanf("%d",&l);
+		Node *cur=root;
+		for (int j=0;j<l;j++){
+			scanf("%d",&x);
+			if (flag)
+				if (cur->tr.count(x))
+					cur=cur->tr[x];
+				else //no transfer
+					flag=0;
+		}
+		if (flag)
+			printf("%d\n",cur->num),
+			cur->vis++;
+		else
+			printf("0\n");
+	}
+	for (int i=0;i<nodec;i++) nodes[i].las=0; //!-- clear
+	for (int i=1;i<=tot;i++){
+		Node *cur=root;
+		for (int j=0;j<len[i];j++)
+			cur=cur->tr[str[i][j]],
+			upd2(cur,i);
+	}
+	for (int i=1;i<=tot;i++)
+		printf("%d ",ans[i]);
+	return 0;
+}
+}
+
+namespace Manacher{
+const int maxn=10000000;
+//p[]: max palindrome len at pos i
+int p[maxn<<1];char s[maxn<<1],s0[maxn];
+int sl,s0l;
+int manacher(){
+    s0l=strlen(s0);
+    sl=1; s[0]='$'; s[1]='#';
+    inc(i,s0l) s[++sl]=s0[i],s[++sl]='#';
+    s[++sl]=0;
+    int mx=0,mi=0,ans=0; //mx: max cur pstr right pos, mi: max cur pstr center pos
+    rep(i,1,sl){
+        p[i]=i<mx?min(p[mi*2-i], mx-i):1;
+        while (s[i-p[i]]==s[i+p[i]]) p[i]++;
+        if (mx<i+p[i]) mi=i,mx=i+p[i];
+        ans=max(ans,p[i]-1);
+    }
+    return ans;
+}
+}
+
+namespace PAM{
+const int maxn=2000500;
+
+//ch[x]: if cur pstr is a, the ch is xax.  len: len of cur pstr
+//fail: longest pstr suffix of cur point.  cnt: count of this pstr.
+struct Node{
+    int ch[10],fail,len;
+	int cnt;
+}node[maxn];
+int nodec,cur, len[maxn];
+char s[maxn];
+
+void pre(){
+    node[0].fail=1; node[1].len=-1;
+    nodec=2;cur=0;
+}
+void insert(int p){
+    int j, x=s[p]-'0';
+    while(s[p-node[cur].len-1]!=s[p])cur=node[cur].fail; //find ch
+    if(!node[cur].ch[x]){
+        node[nodec].len=node[cur].len+2;
+        j=node[cur].fail;
+        while(s[p-node[j].len-1]!=s[p])j=node[j].fail; //find fail
+        node[nodec].fail=node[j].ch[x];
+        node[cur].ch[x]=nodec;
+        cur=nodec;
+		nodec++;
+    }
+    else cur=node[cur].ch[x];
+    len[p]=node[cur].len;
+	node[cur].cnt++;
+}
+char ts[maxn];
+void dfs1(int u, int deep){
+	cout<<ts<<' '<<node[u].len<<'\n'; //cur node
+	for (int i=0;i<10;i++)
+		if (node[u].ch[i]){
+			ts[deep]=i+'0';
+			dfs1(node[u].ch[i],deep+1);
+		}
+}
+int main(){
+	pre();
+	scanf("%s",s); int l=strlen(s);
+	for (int i=0;i<l;i++) insert(i);
+	for (int i=nodec-1;i>0;i--) 
+		node[node[i].fail].cnt+=node[i].cnt;
+	dfs1(0,0); //even pstr
+	dfs1(1,0); //odd pstr
+	return 0;
+}
+}
+
 /*-----------------------data structure------------------------*/
 
 namespace UFSet{
@@ -945,357 +1880,6 @@ int chu_liu_caller(){
 	return 0;
 }
 #endif
-}
-
-namespace Polynomial{
-//Attention: n indicates number of coeffs, so deg F[x]=n-1, not n
-namespace FFT
-{
-typedef complex<double> cd;
-const int maxl=(1<<20)+1;
-const double pi=3.14159265358979;
-int rev[maxl];
-void get_rev(int bit){
-	for (int i=0;i<(1<<bit);i++)
-		rev[i]=(rev[i>>1]>>1)|((i&1)<<(bit-1));
-}
-void fft(cd a[], int n, int dft){
-	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
-	for (int s=1;s<n;s<<=1){
-		cd wn=exp(cd(0,pi*dft/s));
-		for (int j=0;j<n;j+=s<<1){
-			cd wnk(1,0);
-			for (int k=j;k<j+s;k++){
-				cd x=a[k],y=wnk*a[k+s];
-				a[k]=x+y;
-				a[k+s]=x-y;
-				wnk*=wn;
-			}
-		}
-	}
-	if (dft==-1) for (int i=0;i<n;i++) a[i]/=n;
-}
-ll G=3,P=998244353;
-void ntt(ll *a, int n, int dft){
-	for(int i=0;i<n;i++) if(i<rev[i]) swap(a[i],a[rev[i]]);
-	for (int s=1;s<n;s<<=1){
-		ll wn=qpow(G,dft==1?(P-1)/s/2:P-1-(P-1)/s/2,P);
-		for (int j=0;j<n;j+=s<<1){
-			ll wnk=1;
-			for (int k=j;k<j+s;k++){
-				ll x=a[k],y=wnk*a[k+s]%P;
-				a[k]=(x+y)%P; //merge
-				a[k+s]=(x-y+P)%P;
-				wnk=wnk*wn%P;
-			}
-		}
-	}
-	if (dft==-1) {
-		ll inv=qpow(n,P-2,P);
-		for (int i=0;i<n;i++) a[i]=a[i]*inv%P;
-	}
-}
-void conv(cd *fa, cd *fb, int s, cd *ret){
-	static cd a[maxl],b[maxl];
-	memcpy(a,fa,sizeof(cd)*s); memcpy(b,fb,sizeof(cd)*s);
-	fft(a,s,1); fft(b,s,1);
-	for (int i=0;i<s;i++) a[i]*=b[i];
-	fft(a,s,-1);
-	memcpy(ret,a,sizeof(cd)*s);
-}
-void conv(ll *fa, ll *fb, int s, ll *ret){
-	static ll a[maxl],b[maxl];
-	memcpy(a,fa,sizeof(ll)*s); memcpy(b,fb,sizeof(ll)*s);
-	ntt(a,s,1); ntt(b,s,1);
-	for (int i=0;i<s;i++) a[i]*=b[i];
-	ntt(a,s,-1);
-	memcpy(ret,a,sizeof(ll)*s);
-}
-int ans[maxl],_;
-char s1[100010],s2[100010];
-//fast mul
-void base10_mul(){
-	static cd a[maxl],b[maxl];
-	scanf("%s%s",s1,s2);
-	int l1=strlen(s1),l2=strlen(s2);
-	int s=2,bit=1;
-	for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
-	for (int i=0;i<l1;i++) a[i]=s1[l1-i-1]-'0';
-	for (int i=0;i<l2;i++) b[i]=s2[l2-i-1]-'0';
-	conv(a,b,s,a);
-	for (int i=0;i<s;i++) cout<<a[i]<<' '; cout<<'\n';
-	for (int i=0;i<s;i++){
-		ans[i]+=a[i].real();
-		ans[i+1]+=ans[i]/10;
-		ans[i]%=10;
-	}
-	int i;
-	for (i=l1+l2;!ans[i]&&i>=0;i--);
-	if (i==-1) printf("0");
-	for (;i>=0;i--) printf("%d",ans[i]);
-	putchar('\n');
-}
-
-//C[x]=A[x]*B[x], convolve only
-void poly_mul(ll *A, ll *B, int n, ll *C){
-	int s=2,bit=1;
-    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
-    fill(A+n,A+s,0); fill(B+n,B+s,0);
-    get_rev(bit);
-    conv(A,B,s,C);
-}
-void poly_add(ll *A, ll *B, int n, ll *C){
-	for (int i=0;i<n;i++) 
-		C[i]=(A[i]+B[i])%P;
-}
-void poly_sub(ll *A, ll *B, int n, ll *C){
-	for (int i=0;i<n;i++) 
-		C[i]=(A[i]-B[i]+P)%P;
-}
-
-#ifdef NO_COMPILE  //3 module ntt version
-const ll p=1000000007,P1=1004535809,P2=998244353,P3=469762049;
-void poly_mul(ll *A, ll *B, int n, ll *C){
-	static ll res[3][maxl];
-	int s=2,bit=1;
-    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
-    get_rev(bit);
-    conv<P1>(A,B,n,res[0]);
-    conv<P2>(A,B,n,res[1]);
-    conv<P3>(A,B,n,res[2]);
-    ll M=P1*P2;
-    for (int i=0;i<s;i++){ //merge
-    	ll A=(qmul(res[0][i]*P2%M,inv(P2%P1,P1),M)+
-			qmul(res[1][i]*P1%M,inv(P1%P2,P2),M))%M;
-		ll K=(res[2][i]-A%P3+P3)*inv(M%P3,P3)%P3;
-		C[i]=(qmul(K%p,M%p,p)+A)%p;
-    }
-}
-//input A[x], A[x]*B[x]=1 (mod x^n)
-void poly_inv(ll *A, ll *B, int n){
-    if (n==1) {B[0]=qpow(A[0],p-2,p); return;} //constant element
-    poly_inv(A,B,n+1>>1); //divide
-    int s=2,bit=1;
-    for (bit=1;s<n<<1;bit++)s<<=1; //size n*2
-    static ll ta[maxl];//A(x)((2-B(x)A(x))B(x))=1(mod x^2)
-    poly_mul(A,B,n,ta);
-    for (int i=1;i<s;i++) ta[i]=p-ta[i];
-    ta[0]=(2+p-ta[0])%p;
-    poly_mul(ta,B,n,B);
-    //for (int i=0;i<s;i++)cout<<B[i]<<' '; cout<<'\n';
-}
-#endif
-
-//input A[x], A[x]*B[x]=1 (mod x^n)
-void poly_inv(ll *A, ll *B, int n){
-	if (n==1) {B[0]=qpow(A[0],P-2,P); return;} //constant element
-	poly_inv(A,B,n+1>>1); //divide
-    int s=2,bit=1;
-    for (bit=1;(1<<bit)<n<<1;bit++)s<<=1; //size n*2
-    get_rev(bit);
-    static ll ta[maxl];
-    copy(A,A+n,ta); fill(ta+n,ta+s,0);
-	ntt(ta,s,1); ntt(B,s,1);
-    for (int i=0;i<s;i++) //A(x)(2B(x)-B(x)^2A(x))=1(mod x^2)
-    	B[i]=(2-ta[i]*B[i]%P+P)%P*B[i]%P;  
-    ntt(B,s,-1); fill(B+n,B+s,0);
-    //for (int i=0;i<s;i++)cout<<B[i]<<' '; cout<<'\n';
-}
-
-//A[x]=Q[x]*B[x]+R[x], (deg R[x]<deg B[x], deg Q[x]<n-m+1)
-void poly_div(ll *A, ll *B, int n, int m, ll *Q, ll *R){
-	//conclusion: Qr[x] = Ar[x] * poly_inv(Br[x]) (mod x^(n-m+1))
-	static ll X[maxl], Y[maxl], tmp[maxl];
-	memset(X,0,sizeof X); memset(Y,0,sizeof Y); memset(tmp,0,sizeof tmp);
-	copy(A,A+n,X); copy(B,B+m,Y);
-	reverse(X,X+n); reverse(Y,Y+m);
-	poly_inv(Y,tmp,n-m+1); 
-	poly_mul(X,tmp,n-m+1,Q);
-	fill(Q+n-m+1,Q+n,0), reverse(Q,Q+n-m+1);
-    copy(A,A+n,X), copy(B,B+m,Y);
-    poly_mul(Y,Q,n,tmp), poly_sub(X,tmp,n,R);
-	fill(R+m-1,R+n,0);
-}
-
-//B[x]=intergrate A[x]dx,  deg B[x] = deg A[x] + 1
-void poly_int(ll *A, ll *B, ll n){
-	B[0]=0; //constant C
-	for (int i=1;i<=n;i++)
-		B[i]=A[i-1]*qpow(i,P-2,P)%P;
-}
-//B[x]=A'[x],  deg B[x] = deg A[x] - 1
-void poly_deriv(ll *A, ll *B, ll n){
-	B[n-1]=0;
-	for (int i=0;i<n-1;i++)
-		B[i]=A[i+1]*(i+1)%P;
-}
-
-//B[x]=ln A[x]=int(B'[x])=int(A'[x]/A[x])  (mod x^n)
-void poly_ln(ll *A, ll *B, ll n){
-	static ll X[maxl], Y[maxl], tmp[maxl];
-	memset(X,0,sizeof X); memset(Y,0,sizeof Y); memset(tmp,0,sizeof tmp);
-	copy(A,A+n,X); poly_deriv(X,Y,n); 
-	poly_inv(X,tmp,n); copy(tmp,tmp+n,X); 
-	poly_mul(X,Y,n,tmp); poly_int(tmp,B,n);
-}
-
-//Fnew[x]=Fb[x](1-ln(Fb[x])+A[x]), O(nlogn)
-void poly_exp(ll *A, ll *B, int n) {
-    if (n==1) {B[0]=1;return;}
-    static ll tmp[maxl]; memset(tmp,0,sizeof tmp);
-    poly_exp(A,B,n+1>>1);fill(B+(n+1>>1),B+n,0);
-    poly_ln(B,tmp,n); poly_sub(A,tmp,n,tmp);
-    poly_mul(tmp,B,n,tmp); poly_add(B,tmp,n,B);
-}
-
-//B[x]=sqrt(A[x])=exp(0.5*ln(A[x]))
-void poly_sqrt(ll *A, ll *B, int n) {
-    static ll tmp[maxl]; memset(tmp,0,sizeof tmp);
-	poly_ln(A,tmp,n);
-	for (int i=0;i<n;i++) tmp[i]=tmp[i]*qpow(2,P-2,P)%P;
-    poly_exp(tmp,B,n);
-}
-
-//deleted, please use poly_mul(3 module version) instead
-const ll P1=1004535809,P2=998244353,P3=469762049;
-ll res[3][maxl];
-//conv a sequence with mod p, while p<P1*P2*P3
-void conv_mod(){
-	static ll a[maxl],b[maxl];
-	int l1,l2; ll p;
-    rd(l1); rd(l2); l1++; l2++;
-    int s=2,bit=1;
-    for (bit=1;(1<<bit)<l1+l2-1;bit++)s<<=1;
-	get_rev(bit);
-    int r; rd(r); p=r;
-    for (int i=0;i<l1;i++) rd(r),a[i]=r;
-    for (int i=0;i<l2;i++) rd(r),b[i]=r;
-    G=3,P=P1; conv(a,b,s,res[0]);
-    G=3,P=P2; conv(a,b,s,res[1]);
-    G=3,P=P3; conv(a,b,s,res[2]);
-    ll M=P1*P2;
-    for (int i=0;i<l1+l2-1;i++){ //merge
-    	//printf("%lld %lld %lld \n",res[0][i],res[1][i],res[2][i]);
-    	ll A=(qmul(res[0][i]*P2%M,inv(P2%P1,P1),M)+
-			qmul(res[1][i]*P1%M,inv(P1%P2,P2),M))%M;
-		ll K=(res[2][i]-A%P3+P3)*inv(M%P3,P3)%P3;
-		//cout<<A<<' '<<K<<' ';
-		printf("%lld ", (qmul(K%p,M%p,p)+A)%p);
-    }
-}
-} //namespace FFT
-
-const int maxn=2010;
-ll x[maxn],y[maxn];
-int n;
-//O(n^2) get single point value
-//if xi between 1~n, we can optimize it to O(n)
-//if xi not in 1~n, we can still preprocess PIj (ki-x[j]+p)%p, 
-//  then get multi point value in O(max(n^2,nm))
-ll LangrangeInter(ll k, ll p){
-    ll sum=0;
-    for (int i=0;i<n;i++){
-        ll s0=1;
-        for (int j=0;j<n;j++)
-            if (i!=j) s0=s0*(x[i]-x[j]+p)%p;
-        s0=qpow(s0,p-2,p);
-        for (int j=0;j<n;j++)
-            if (i!=j) s0=s0*(k-x[j]+p)%p;
-        sum=(sum+y[i]*s0)%p;
-    }
-	return sum;
-}
-
-namespace FWT{
-int N,P,inv2;
-const int maxl=1<<18+1;
-void fwt_or(int *a,int opt){
-    for(int i=1;i<N;i<<=1)
-        for(int p=i<<1,j=0;j<N;j+=p)
-            for(int k=0;k<i;++k)
-                if(opt==1) a[i+j+k]=(a[j+k]+a[i+j+k])%P;
-                else a[i+j+k]=(a[i+j+k]+P-a[j+k])%P;
-}
-void fwt_and(int *a,int opt){
-    for(int i=1;i<N;i<<=1)
-        for(int p=i<<1,j=0;j<N;j+=p)
-            for(int k=0;k<i;++k)
-                if(opt==1) a[j+k]=(a[j+k]+a[i+j+k])%P;
-                else a[j+k]=(a[j+k]+P-a[i+j+k])%P;
-}
-void fwt_xor(int *a,int opt){
-    for(int i=1;i<N;i<<=1)
-        for(int p=i<<1,j=0;j<N;j+=p)
-            for(int k=0;k<i;++k){
-                int X=a[j+k],Y=a[i+j+k];
-                a[j+k]=(X+Y)%P,a[i+j+k]=(X+P-Y)%P;
-                if(opt==-1) a[j+k]=(ll)a[j+k]*inv2%P,a[i+j+k]=(ll)a[i+j+k]*inv2%P;
-            }
-}
-void bit_conv(int *fa, int *fb, int *c){
-	static int a[maxl],b[maxl];
-	memcpy(a,fa,sizeof(int)*N); memcpy(b,fb,sizeof(int)*N);
-	fwt_xor(a,1); fwt_xor(b,1);
-	for (int i=0;i<N;i++) a[i]=a[i]*b[i]%P;
-	fwt_xor(a,-1);
-	memcpy(c,a,sizeof(int)*N);
-}
-}
-}
-
-namespace Expr{
-//Easy experission, calc +-*/^()
-#define CP cin.peek()
-#define CG cin.get()
-#define CS while (CP==' ') CG;
-
-int S();
-int V(){CS
-	int ans=0;
-	if (CP=='('){
-		CG;
-		ans=S();
-		CS;CG;
-	}
-	else cin>>ans;
-	return ans;
-}
-int U(){
-	int ans=V(); CS;
-	while (CP=='^'){
-		CG;
-		int v=V(),d=ans;
-		if (v==0) ans=1;
-		for (int i=1;i<v;i++)
-			ans*=d;
-	}
-	return ans;
-}
-int T(){
-	int ans=U(); CS;
-	while (CP=='*' || CP=='/'){
-		if (CG=='*') ans*=U();
-		else ans/=U();
-	}
-	return ans;
-}
-int S(){
-	int ans=0; CS;
-	if (CP=='-'){
-		CG; ans=-T();
-	}
-	else ans=T();
-	CS;
-	while (CP=='+' || CP=='-'){
-		if (CG=='+') ans+=T();
-		else ans-=T();
-	}
-	return ans;
-}
-
-#undef CG
-#undef CP
-#undef CS
 }
 
 namespace BipartiteGraph{
@@ -1888,473 +2472,107 @@ int main(){
 }
 }
 
-namespace StringHash{
-//double module hash
-typedef unsigned long long ll;
-const ll m1=1000000007;
-const int maxn=1000010;
-ll h1[maxn],h2[maxn],b1[maxn],b2[maxn];
-void pre(){
-	b1[0]=b2[0]=1;
-	inc(i,maxn-1)
-		b1[i+1]=b1[i]*131%m1,
-		b2[i+1]=b2[i]*137;
-}
-void gethash(char *s, int l){
-	h1[l]=h2[l]=0;
-	dec(i,l){
-		h1[i]=(h1[i+1]*131+s[i])%m1;
-		h2[i]=h2[i+1]*137+s[i];
-		//cout<<h1[i]<<' '<<b1[i]<<'\n';
-	}
-}
-//get substring [l,r) hash value
-pair<ll,ll> substr(int l, int r){
-	ll r1=h1[l]+m1-h1[r]*b1[r-l]%m1; if (r1>=m1) r1-=m1;
-	ll r2=h2[l]-h2[r]*b2[r-l];
-	return {r1,r2};
-}
-}
+namespace KDT{
+const int N=1000010, inf=0x3f3f3f3f;
+int n,m,K,rt,ans;
 
-namespace KMP{
-const int maxn=1000010;
-
-int kmp[maxn];
-//s is a short partten string
-char s[maxn]; int sl; 
-void getkmp(){
-	int j=0,k=-1;
-	kmp[0]=-1;
-	while (j<sl)
-		if (k==-1 || s[j]==s[k])
-			kmp[++j]=++k;
-		else
-			k=kmp[k];
-}
-int kmp_idx(char *t, int tl){
-	int i=0, j=0;
-	while (i<sl && j<tl)
-		if (i==-1 || s[i]==t[j])
-			i++,j++;
-		else
-			i=kmp[i];
-	if (i==sl) return j-sl;
-	else return -1;
-}
-int kmp_cnt(char *t, int tl){
-	int i=0, j=0, cnt=0;
-	while (j<tl){
-		if (i==-1 || s[i]==t[j])
-			i++,j++;
-		else
-			i=kmp[i];
-		if (i==sl) cnt++;
+//s[]:tree node  p[2]:2-d coord of leaf node  x[2]:min(LB) coord of a subspace  y[2]:max(RT) coord
+struct Node{
+	int p[2],x[2],y[2];
+	bool operator<(const Node &v)const{
+		return p[K]<v.p[K];
 	}
-	return cnt;
-}
-}
-//!-- untested
-//extend KMP
-//extend[i]: LCP lenth between s1[i..l1] and s2
-namespace E_KMP{
-const int N=100010;
-int next[N],extend[N];
-void getnext(char *str){
-    int i=0,j,po,len=strlen(str);
-    next[0]=len;
-    while(str[i]==str[i+1] && i+1<len) i++; next[1]=i; //calc next[1]
-    po=1;
-    for(i=2;i<len;i++)
-        if(next[i-po]+i < next[po]+po)
-            next[i]=next[i-po];
-        else{
-            j = next[po]+po-i;
-            if(j<0) j=0;
-            while(i+j<len && str[j]==str[j+i]) j++; next[i]=j;
-            po=i;
-        }
-}
-void exkmp(char *s1,char *s2){
-    int i=0,j,po,len=strlen(s1),l2=strlen(s2);
-    getnext(s2);
-    while(s1[i]==s2[i] && i<l2 && i<len) i++; extend[0]=i;
-    po=0;
-    for(i=1;i<len;i++)
-        if(next[i-po]+i < extend[po]+po)
-            extend[i]=next[i-po];
-        else //continue try match after e[po]+po
-        {
-            j = extend[po]+po-i;
-            if(j<0) j=0;
-            while(i+j<len && j<l2 && s1[j+i]==s2[j]) j++; extend[i]=j;
-            po=i; //update po
-        }
-}
-}
-
-namespace ACAM{
-const int maxn=100000,alpha=26; //maxn >= sigma len(si)
-int ch[maxn][alpha],val[maxn],fail[maxn],lbl[maxn],len[maxn],pc=0;
-int cnt[1000]; //str appear times, first element is 1
-int strc=0;
-void clear(){
-	pc=0; strc=0;
-	memset(ch,0,sizeof(ch));
-	memset(fail,0,sizeof(fail));
-	memset(val,0,sizeof(val));
-	memset(lbl,0,sizeof(lbl));
-}
-//Trie construct
-void ins(char *s){
-	int l=strlen(s), cur=0;
-	for (int i=0;i<l;i++){
-		int v=s[i]-'a';
-		if (!ch[cur][v]) ch[cur][v]=++pc;
-		cur=ch[cur][v];
-		len[cur]=i+1;
-	}
-	strc++;
-	lbl[cur]=strc;
-	val[cur]++;
-}
-int qu[maxn];
-//fail edge add
-void build(){
-	int qh=0,qt=0;
-	for (int i=0;i<alpha;i++)
-		if (ch[0][i]) fail[ch[0][i]]=0,qu[qt++]=ch[0][i];
-	while (qh<qt){
-		int u=qu[qh];qh++;
-		for (int i=0;i<alpha;i++)
-			if (ch[u][i])
-				fail[ch[u][i]]=ch[fail[u]][i],qu[qt++]=ch[u][i];
-			else
-				ch[u][i]=ch[fail[u]][i]; //opt, move to fail auto. Attention: the multi fail jump will be emitted
+}a[N],s[N],q;
+int ch[N][2];
+#define lc ch[u][0]
+#define rc ch[u][1]
+void upd(int u){
+	inc(i,2){
+		if (lc) s[u].x[i]=min(s[u].x[i],s[lc].x[i]),
+				s[u].y[i]=max(s[u].y[i],s[lc].y[i]);
+		if (rc) s[u].x[i]=min(s[u].x[i],s[rc].x[i]),
+				s[u].y[i]=max(s[u].y[i],s[rc].y[i]);
 	}
 }
-//count how many mode str appeared in s as substr
-int appear(char *s){
-	int l=strlen(s),cur=0,ans=0;
-	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
-		for (int t=cur;t && ~val[t];t=fail[t]) //the label be sure O(n)
-			ans+=val[t],val[t]=-1;
-	}
-	return ans;
+void add(int u, Node &t){
+	inc(i,2) s[u].x[i]=s[u].y[i]=s[u].p[i]=t.p[i];
 }
-//count each mode str in s
-//[!] worst O(n^2), a better way is dp on fail tree
-void cntall(char *s){
-	int l=strlen(s),cur=0;
-	memset(cnt,0,sizeof(cnt));
-	for (int i=0;i<l;i++){
-		cur=ch[cur][s[i]-'a']; //the opt trans emitted fail jump chain, do it when necessary
-		for (int t=cur;t;t=fail[t])
-			cnt[lbl[t]]++;
+int disL1Min(int u, Node &t){ //min L1 dis to a Rect of in_tree node
+	int ret=0;
+	inc(i,2) 
+		if (t.p[i]>s[u].y[i]) ret+=t.p[i]-s[u].y[i];
+		else if (t.p[i]<s[u].x[i]) ret+=s[u].x[i]-t.p[i];
+	return ret;
+}
+int disL1Max(int u, Node &t){
+	int ret=0;
+	inc(i,2) ret+=max(abs(t.p[i]-s[u].x[i]),abs(t.p[i]-s[u].y[i]));
+	return ret;
+}
+int sqr(int a){
+	return a*a;
+}
+int disL2Min(int u, Node &t){
+	int ret=0;
+	inc(i,2) 
+		if (t.p[i]>s[u].y[i]) ret+=sqr(t.p[i]-s[u].y[i]);
+		else if (t.p[i]<s[u].x[i]) ret+=sqr(t.p[i]-s[u].x[i]);
+	return ret;
+}
+int disL2Max(int u, Node &t){ //max coord dis
+	int ret=0;
+	inc(i,2) ret+=max(sqr(t.p[i]-s[u].x[i]),sqr(t.p[i]-s[u].y[i]));
+	return ret;
+}
+void build(int &u, int l, int r, int cur){ //O(nlogn)
+	u=l+r>>1; K=cur;
+	nth_element(a+l,a+u,a+r+1);
+	add(u,a[u]);
+	if (l<u) build(lc,l,u-1,cur^1);
+	if (r>u) build(rc,u+1,r,cur^1);
+	upd(u);
+}
+//Maybe we need to rebuild the tree after unbalanced insert
+void ins(int u, int cur){  
+	if (q.p[cur]<s[u].p[cur])
+		if (lc) ins(lc,cur^1);
+		else lc=++n,add(n,q);
+	else
+		if (rc) ins(rc,cur^1);
+		else rc=++n,add(n,q);
+	upd(u);
+}
+void ask(int u){
+	ans=min(ans,abs(s[u].p[0]-q.p[0])+abs(s[u].p[1]-q.p[1])); //L1 dis
+	int dl=lc?disL1Min(lc,q):inf, dr=rc?disL1Min(rc,q):inf;
+	//int dl=lc?disL1Max(lc,q):0, dr=rc?disL1Max(rc,q):0;
+	if (dl<dr){ //trim branch, swap > < when search max dis point
+		if (dl<ans) ask(lc);
+		if (dr<ans) ask(rc);
+	}
+	else{
+		if (dr<ans) ask(rc);
+		if (dl<ans) ask(lc);
 	}
 }
-}
-
-namespace SA{
-//sa: pos of ith rk suf, rk: rk of i pos suf, a: s0-'a'
-//t1,t2,c: temp array, h: height(LCP of sa[i] and sa[i-1])
-int t1[N],t2[N],sa[N],h[N],rk[N],c[N],a[N];
-int n,m;
-void calcsa(){
-	int *x=t1,*y=t2,p=0,f=0;
-	icc(i,m) c[i]=0;        
-	icc(i,n) c[x[i]=a[i]]++;  //first char sort
-	icc(i,m) c[i]+=c[i-1];
-	dcc(i,n) sa[c[x[i]]--]=i; //pos of ith first char
-	for (int i=1;i<=n && p<=n;i<<=1){
-		p=0;
-		rpp(j,n-i+1,n) y[++p]=j;  //remain part
-		icc(j,n) if (sa[j]>i) y[++p]=sa[j]-i; //main part
-		icc(j,m) c[j]=0;
-		icc(j,n) c[x[y[j]]]++;
-		icc(i,m) c[i]+=c[i-1];
-		dcc(j,n) sa[c[x[y[j]]]--]=y[j]; //sort, use dcc because sort should be stable
-		swap(x,y);x[sa[1]]=p=1; 
-		rpp(j,2,n) x[sa[j]]=y[sa[j]]==y[sa[j-1]]&&y[sa[j]+i]==y[sa[j-1]+i]?p:++p; //refill key
-		m=p;
-	}
-	icc(i,n) rk[sa[i]]=i;
-	icc(i,n){ //get height, O(n)
-		int j=sa[rk[i]-1];
-		if (f) f--; while (a[i+f]==a[j+f]) f++;
-		h[rk[i]]=f;
-	}
-}
-
-char s0[N];
+//minDisPoint (L1 dis) with ins operate
+//each query asks one nearest point of a giving coord
 int main(){
-	scanf("%s",s0); int l=strlen(s0);
-	inc(i,l) a[++n]=s0[i]-' ';
-	m=200;
-	calcsa();
-	icc(i,n) printf("%d ",sa[i]);
+	scanf("%d%d",&n,&m);
+	for (int i=1;i<=n;i++) scanf("%d%d",&a[i].p[0],&a[i].p[1]);
+	build(rt,1,n,0);
+	while (m--){
+		int k; scanf("%d%d%d",&k,&q.p[0],&q.p[1]);
+		if (k==1) ins(rt,0);
+		else{
+			ans=inf; ask(rt);
+			printf("%d\n",ans);
+		}
+	}
 	return 0;
 }
-}
-
-namespace SAM{
-const int maxn=100010,alpha=26;
-
-//max state cnt: 2*strlen-1
-//max transfer cnt: 3*strlen-4
-struct Node{
-	int l,num; bool vis;
-	Node *p, *tr[alpha];
-	//vector<Node *> ch;
-	void set(int _l){l=_l;memset(tr,0,sizeof(tr));p=0;num=1;vis=0;/*ch.clear();*/}
-}nodes[maxn<<1];
-int nodec;
-Node *root;
-Node *open(int l){
-	nodes[nodec++].set(l);
-	return nodes+nodec-1;
-}
-void build(char *s, int l){
-	Node *cur;
-	cur=root=open(0);
-	for (int i=0;i<l;i++){
-		int x=s[i]-'a';
-		Node *p=cur;
-		cur=open(i+1);
-		for (;p && !p->tr[x];p=p->p)
-			p->tr[x]=cur;
-		if (!p) cur->p=root;
-		else{
-			Node *q=p->tr[x];
-			if (p->l+1==q->l) cur->p=q;
-			else{
-				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
-				q->p=r; cur->p=r; r->num=0;
-				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
-			}
-		}
-	}
-}
-//get substr last position
-int pos(Node *u, char *s){
-	if (*s==0) return u->l;
-	if (!u->tr[*s-'a']) return -1;
-	return pos(u->tr[*s-'a'],s+1);
-}
-
-int t[maxn],r[maxn]; //t:temp, r:rank(ith element pos)
-//init |right(s)| before cnt
-void initnum(int s0l){
-	rep(i,0,s0l+1) t[i]=0;
-	inc(i,nodec) t[nodes[i].l]++;
-	rep(i,1,s0l+1) t[i]+=t[i-1];
-	inc(i,nodec) r[--t[nodes[i].l]]=i; //sort by count
-	per(i,nodec,1) nodes[r[i]].p->num+=nodes[r[i]].num; //dp
-}
-//count substr
-int cnt(Node *u, char *s){
-	if (*s==0) return u->num;
-	if (!u->tr[*s-'a']) return 0;
-	return cnt(u->tr[*s-'a'],s+1);
-}
-// longest substring
-int lcs(char *x1){
-	int lcs=0, ans=0, xl=strlen(x1);
-	Node *p=root;
-	inc(i,xl){
-		int x=x1[i]-'a';
-		if (p->tr[x]){
-			lcs++;
-			p=p->tr[x];
-			ans=max(ans,lcs);
-			continue;
-		}
-		for (;p && !p->tr[x];p=p->p);
-		if (!p) p=root,lcs=0;
-		else{
-			lcs=p->l+1;
-			p=p->tr[x];
-		}
-		ans=max(ans,lcs);
-	}
-	return ans;
-}
-}
-
-//mulit-str SAM
-namespace GSAM{
-const int maxn=200010;
-struct Node{
-	int l, num, las, vis;
-	Node *p;
-	map<int,Node*> tr; //more time, less memory
-	//int tr[26];
-}nodes[maxn<<1];
-int nodec;
-Node *open(int l){
-	nodes[nodec++].l=l;
-	return nodes+nodec-1;
-}
-Node *root=open(0);
-void build(int *s, int l){
-	Node *cur=root;
-	for (int i=0;i<l;i++){
-		int x=s[i];
-		if (cur->tr.count(x)){  //transfer existed
-			cur=cur->tr[x];
-			continue;
-		}
-		Node *p=cur;
-		cur=open(i+1);
-		for (;p && !p->tr.count(x);p=p->p)
-			p->tr[x]=cur;
-		if (!p) cur->p=root;
-		else{
-			Node *q=p->tr[x];
-			if (p->l+1==q->l) cur->p=q;
-			else{
-				Node *r=open(-1); r[0]=q[0]; r->l=p->l+1;
-				q->p=r; cur->p=r; r->num=0;
-				for (;p && p->tr[x]==q;p=p->p) p->tr[x]=r;
-			}
-		}
-	}
-}
-int len[200010],tot;
-vector<int> str[200010];
-int ts[200010];
-int ans[200010];
-//calc how many mode str appear in each query
-void upd1(Node *u, int col){ 
-	for (;u->las!=col && u!=root;u=u->p)
-		u->las=col, u->num++;
-}
-//calc ecah mode str appear how many query
-void upd2(Node *u, int col){ 
-	for (;u->las!=col && u!=root;u=u->p)
-		u->las=col,ans[col]+=u->vis;
-}
-//n: ptn str, m: query str
-int main(){
-	int n,m; cin>>n>>m;
-	for (int i=0;i<n;i++){
-		++tot;
-		scanf("%d", len+tot);
-		for (int j=0;j<len[tot];j++){
-			scanf("%d",ts+j);
-			str[tot].push_back(ts[j]);
-		}
-		build(ts,len[tot]);
-	}
-	for (int i=1;i<=tot;i++){
-		Node *cur=root;
-		for (int j=0;j<len[i];j++)
-			cur=cur->tr[str[i][j]],
-			upd1(cur,i);
-	}
-	for (int i=0;i<m;i++){
-		int l,x; bool flag=1;
-		scanf("%d",&l);
-		Node *cur=root;
-		for (int j=0;j<l;j++){
-			scanf("%d",&x);
-			if (flag)
-				if (cur->tr.count(x))
-					cur=cur->tr[x];
-				else //no transfer
-					flag=0;
-		}
-		if (flag)
-			printf("%d\n",cur->num),
-			cur->vis++;
-		else
-			printf("0\n");
-	}
-	for (int i=0;i<nodec;i++) nodes[i].las=0; //!-- clear
-	for (int i=1;i<=tot;i++){
-		Node *cur=root;
-		for (int j=0;j<len[i];j++)
-			cur=cur->tr[str[i][j]],
-			upd2(cur,i);
-	}
-	for (int i=1;i<=tot;i++)
-		printf("%d ",ans[i]);
-	return 0;
-}
-}
-
-namespace Manacher{
-const int maxn=10000000;
-//p[]: max palindrome len at pos i
-int p[maxn<<1];char s[maxn<<1],s0[maxn];
-int sl,s0l;
-int manacher(){
-    s0l=strlen(s0);
-    sl=1; s[0]='$'; s[1]='#';
-    inc(i,s0l) s[++sl]=s0[i],s[++sl]='#';
-    s[++sl]=0;
-    int mx=0,mi=0,ans=0; //mx: max cur pstr right pos, mi: max cur pstr center pos
-    rep(i,1,sl){
-        p[i]=i<mx?min(p[mi*2-i], mx-i):1;
-        while (s[i-p[i]]==s[i+p[i]]) p[i]++;
-        if (mx<i+p[i]) mi=i,mx=i+p[i];
-        ans=max(ans,p[i]-1);
-    }
-    return ans;
-}
-}
-
-namespace PAM{
-const int maxn=2000500;
-
-//ch[x]: if cur pstr is a, the ch is xax.  len: len of cur pstr
-//fail: longest pstr suffix of cur point.  cnt: count of this pstr.
-struct Node{
-    int ch[10],fail,len;
-	int cnt;
-}node[maxn];
-int nodec,cur, len[maxn];
-char s[maxn];
-
-void pre(){
-    node[0].fail=1; node[1].len=-1;
-    nodec=2;cur=0;
-}
-void insert(int p){
-    int j, x=s[p]-'0';
-    while(s[p-node[cur].len-1]!=s[p])cur=node[cur].fail; //find ch
-    if(!node[cur].ch[x]){
-        node[nodec].len=node[cur].len+2;
-        j=node[cur].fail;
-        while(s[p-node[j].len-1]!=s[p])j=node[j].fail; //find fail
-        node[nodec].fail=node[j].ch[x];
-        node[cur].ch[x]=nodec;
-        cur=nodec;
-		nodec++;
-    }
-    else cur=node[cur].ch[x];
-    len[p]=node[cur].len;
-	node[cur].cnt++;
-}
-char ts[maxn];
-void dfs1(int u, int deep){
-	cout<<ts<<' '<<node[u].len<<'\n'; //cur node
-	for (int i=0;i<10;i++)
-		if (node[u].ch[i]){
-			ts[deep]=i+'0';
-			dfs1(node[u].ch[i],deep+1);
-		}
-}
-int main(){
-	pre();
-	scanf("%s",s); int l=strlen(s);
-	for (int i=0;i<l;i++) insert(i);
-	for (int i=nodec-1;i>0;i--) 
-		node[node[i].fail].cnt+=node[i].cnt;
-	dfs1(0,0); //even pstr
-	dfs1(1,0); //odd pstr
-	return 0;
-}
+#undef lc
+#undef rc
 }
 
 namespace Heap{
@@ -2801,174 +3019,6 @@ int main(){ //reverse
 #undef rc
 }
 
-namespace LinAlg{
-const int maxn=1010,maxm=1010;
-double a[maxn][maxm],b[maxn][maxn],ans[maxn];
-int n,m;
-const int eps=1e-7;
-//require m=n+1 and only one solution
-bool gauss_solve(){
-	for (int i=0;i<n;i++){
-		int maxl=i;
-		for (int j=i+1;j<n;j++)
-			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (maxl!=i) swap(a[i],a[maxl]);
-		if (fabs(a[i][i])<eps) return 0; //no solution or infinity solution 
-		for (int j=i+1;j<n;j++){
-			double r=a[j][i]/a[i][i];
-			for (int k=i;k<m;k++)
-				a[j][k]-=r*a[i][k];
-		}
-		double r=a[i][i];
-		for (int k=i;k<m;k++) a[i][k]/=r;
-	}
-	for (int i=n-1;i>=0;i--){
-		ans[i]=a[i][n];
-		for (int j=i+1;j<n;j++)
-			ans[i]-=a[i][j]*ans[j];
-	}
-	return 1;
-}
-//n*n matrix
-bool matinv(){
-	memset(b,0,sizeof(b));
-	for (int i=0;i<n;i++) b[i][i]=1;	
-	for (int i=0;i<n;i++){
-		int maxl=i;
-		for (int j=i+1;j<n;j++)
-			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (i!=maxl) swap(a[i],a[maxl]),swap(b[i],b[maxl]);
-		if (fabs(a[i][i])<eps) return 0; //No trivil
-		double r=a[i][i];
-		for (int k=0;k<n;k++) a[i][k]/=r,b[i][k]/=r; //k start from 0
-		for (int j=i+1;j<n;j++){
-			double r=a[j][i]/a[i][i];
-			for (int k=0;k<n;k++) //k start from 0
-				a[j][k]-=r*a[i][k], b[j][k]-=r*b[i][k];
-		}
-	}
-	return 1;
-}
-double det(){
-	double ans=1;
-	for (int i=0;i<n;i++){
-		int maxl=i;
-		for (int j=i+1;j<n;j++)
-			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (i!=maxl) swap(a[i],a[maxl]),ans=-ans;
-		if (fabs(a[i][i])<eps) return 0;
-		for (int j=i+1;j<n;j++){
-			double r=a[j][i]/a[i][i];
-			for (int k=i;k<n;k++)
-				a[j][k]-=r*a[i][k];
-		}
-	}
-	for (int i=0;i<n;i++) ans*=a[i][i];
-	return ans;
-}
-int matrank(){
-	int l=0; //real line
-	for (int i=0;i<m;i++){ //i: col start pos
-		int maxl=l;
-		for (int j=l+1;j<n;j++)
-			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
-		if (l!=maxl) swap(a[l],a[maxl]);
-		if (fabs(a[l][i])<eps) continue;
-		for (int j=l+1;j<n;j++){
-			double r=a[j][i]/a[l][i];
-			for (int k=i;k<m;k++)
-				a[j][k]-=r*a[i][k];
-		}
-		l++;
-	}
-	return l;
-}
-const ll p=19260817; //const is faster than normal variable
-//int det with mod
-//used by Matrix-Tree theorem
-//M-T theo: a[i][i]=deg i, a[i][j]=-cnt(i->j), n=|vertex|-1
-ll detint(ll **a){
-	ll ans=1;
-	for (int i=0;i<n;i++) for (int j=0;j<n;j++) if (a[i][j]<0) a[i][j]+=p;
-	for (int i=0;i<n;i++){
-		int maxl=i;
-		for (int j=i;j<n;j++)
-			if (a[j][i]) {maxl=j;break;}
-		if (i!=maxl) swap(a[i],a[maxl]), ans=p-ans;
-		if (a[i][i]==0) return 0;
-		ans=ans*a[i][i]%p;   //[i] Here update ans before set a[i][i] to 1
-		int v=inv(a[i][i],p);
-		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
-		for (int j=i+1;j<n;j++){
-			ll r1=a[j][i];
-			if (!r1) continue;
-			for (int k=i;k<n;k++)
-				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
-		}
-	}
-	return ans;
-}
-//matinv with mod
-//require m=2*n, result is a[i][(0..n-1)+n]
-bool matinv_int(ll **a){
-	m=2*n;
-	//a[i][(0..n-1)+n]=0; //set to 0 when necessary
-	for (int i=0;i<n;i++) a[i][i+n]=1;	
-	for (int i=0;i<n;i++){
-		int maxl=i;
-		for (int j=i;j<n;j++)
-			if (a[j][i]) {maxl=j;break;}
-		if (i!=maxl) swap(a[i],a[maxl]);
-		if (a[i][i]==0) return 0;
-		int v=inv(a[i][i],p);
-		for (int j=i;j<m;j++) a[i][j]=a[i][j]*v%p;
-		for (int j=0;j<n;j++){
-			if (!a[j][i] || j==i) continue;
-			ll r1=a[j][i];
-			for (int k=i;k<m;k++)
-				a[j][k]=(a[j][k]-r1*a[i][k]%p+p)%p;
-		}
-	}
-	return 1;
-}
-#ifdef NO_COMPILE
-int n,m,p;
-//solve linear equ in module p
-//not require m=n+1, get a possible solution ans[0..m-1)
-bool gauss_solve_int(){  //similar as matrank
-	int l=0; //real line
-	for (int i=0;i<m;i++){ //i: col start pos
-		int maxl=l;
-		for (int j=l;j<n;j++)
-			if (a[j][i]) {maxl=j;break;}
-		if (maxl!=l) swap(a[l],a[maxl]);
-		if (!a[l][i]) continue; //next col
-		int v=inv(a[l][i],p);
-		for (int j=i;j<m;j++) a[l][j]=a[l][j]*v%p;
-		for (int j=l+1;j<n;j++){
-			if (!a[j][i]) continue;
-			int r1=a[j][i];
-			for (int k=i;k<m;k++)
-				a[j][k]=(a[j][k]-r1*a[l][k]%p+p)%p;
-		}
-		l++;
-	} //now l is rank of matrix
-	int last=m-1,cur;
-	for (int i=l-1;i>=0;i--){
-		for (cur=0;cur<m-1 && !a[i][cur];cur++); //first no zero column
-		int t=a[i][m-1]; 
-		for (int j=last;j<m-1;j++) t=(t-a[i][j]*ans[j]%p+p)%p;
-		for (last--;last>cur;last--) //any solution, set to 0
-			ans[last]=0; //,t=(t-a[i][j]*ans[last]%p+p)%p; when ans[last] is not 0
-		if (cur==m-1 && t) return 0; //no solution
-		ans[cur]=t; //a[i][cur]=1, so ans[cur]=t
-		last=cur;
-	}
-	return 1;
-}
-#endif
-}
-
 namespace LCA{
 const int maxn=500010;
 struct Edge{
@@ -3102,6 +3152,7 @@ void process(){
 }
 }
 }
+
 namespace SplitTree{
 const int maxn=100010;
 struct Edge{
@@ -4155,6 +4206,308 @@ db minDisPoint(point *p, int n){
 
 }
 
+namespace Geo3D{
+
+typedef double db;
+const db PI=acos(-1);
+const db eps=1e-10, inf=1e12;
+
+bool eq(db x){return fabs(x)<eps;}
+int sgn(db x){
+	if (x<=-eps) return -1;
+	return x>=eps;
+}
+
+#define Vec const vec &
+#define Point const point &
+struct vec{
+	db x,y,z;
+	vec():x(0),y(0){}
+	vec(db x, db y, db z):x(x),y(y),z(z){}
+	vec(db theta):x(cos(theta)),y(sin(theta)){}
+
+	bool operator==(Vec v) const{return eq(x-v.x) && eq(y-v.y) && eq(z-v.z);}
+	
+	vec operator+(Vec v) const{return vec(x+v.x,y+v.y,z+v.z);}
+	vec operator-(Vec v) const{return vec(x-v.x,y-v.y,z-v.z);}
+	vec operator*(db a) const{return vec(x*a,y*a,z*a);}
+	vec operator/(db a) const{return vec(x/a,y/a,z/a);}
+	
+	db operator|(Vec v) const{return x*v.x+y*v.y+z*v.z;} //dot
+	vec operator&(Vec v) const{return vec(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x);} //cross
+	db operator!() const{return sqrt(x*x+y*y+z*z);} //len
+	
+	friend ostream& operator<<(ostream &o, Vec v){
+		o<<v.x<<','<<v.y<<','<<v.z;
+		return o;
+	}
+};
+typedef vec point;
+
+db angle(Vec a, Vec b){return atan2(!(a&b),a|b);}
+vec cross(Point a, Point b, Point c){return b-a & c-a;}
+db dot(Point a, Point b, Point c){return b-a | c-a;}
+
+//mixtured product; 6-times directed volume
+db vol6(Point a, Point b, Point c, Point d){
+	return b-a&c-a|d-a;
+}
+
+//point projection on line S+tV
+point lineProj(Point p, Point s, Vec v){
+	return s+v*(v|p-s)/(v|v);
+}
+//symmetric point of P about line S+tV
+point symmetric(Point p, Point s, Vec v){
+	return lineProj(p,s,v)*2-p;
+}
+//distance of p to line S+tV
+db lineDis(Point p, Point s, Vec v){
+	return !(v & p-s)/!v;
+}
+//distance of p to segment S+tV
+db segDis(Point p, Point s, Vec v){
+	if (eq(!v)) return !(s-p); //single point
+	vec v2=p-s,v3=p-s-v;
+	if ((v|v2)<0) return !v2;
+	else if ((v|v3)>0) return !v3;
+	return !(v&v2)/!v;
+}
+//distance of seg A-B and seg C-D
+db segDis(Point a, Point b, Point c, Point d){
+	vec u=b-a, v=d-c;
+	return min(min(segDis(c,a,u),segDis(d,a,u)),min(segDis(a,c,v),segDis(b,c,v)));
+}
+//point is on line
+bool onLine(Point p, Point a, Point b){return eq(!(p-a&b-a));}
+//point on seg [a,b]
+bool onSeg(Point p, Point a, Point b){return eq(!(p-a&b-a)) && sgn(a-p|b-p)<=0;}
+
+//rot point P by line S+tV ang rads clockwise(see from s to t)
+point rot(Point p, Point s, Vec v, db ang){
+	if (eq(!(v&p-s))) return p;
+	point f1=v&p-s;
+	point f2=f1&v;
+	f1=f1/!v; 
+	f2=f2/!f2*!f1;
+	return p-f2+f1*sin(ang)+f2*cos(ang);
+}
+
+struct plane{
+	point p;
+	vec v; //normal vector
+	plane(){}
+	plane(Point p, Vec v):p(p),v(v){}
+	plane(Point a, Point b, Point c):p(a),v(cross(a,b,c)){}
+	//ax+by+cz+d=0
+	plane(db a, db b, db c, db d){
+		v=vec(a,b,c);
+		if (sgn(a)) p=point((-d-c-b)/a,1,1);
+		else if (sgn(b)) p=point(1,(-d-c-a)/b,1);
+		else p=point(1,1,(-d-a-b)/c);
+	}
+};
+//point is on plane
+bool onPlane(Point p, plane f){
+	return eq(dot(f.p,p,f.v));
+}
+//line s cross plane f
+int lineInt(point s, vec v, plane f, point &ans){
+	db d=v|f.v;
+	if (eq(d)) return 0; //parallel
+	ans=s+v/d*(f.p-s|f.v);
+	return 1;
+}
+//porjection of point p on plane f
+point planeProj(point p, plane f){
+	db d=f.v|f.v;
+	return p+f.v/d*(f.p-p|f.v);
+}
+//plane a cross plane b, get a line
+int planeInt(plane a, plane b, point &s, point &v){
+	v=a.v&b.v;
+	if (eq(!v)) return 0; //parallel
+	point t=a.v&v;
+	s=a.p+t/fabs(b.v|t)*(b.v|b.p-a.p); //s is cent pos
+	return 1;
+}
+
+//area of triangle on unit sphere
+db angle3d_sptri(Point x, Point y, Point z){
+	vec a=x&y,b=y&z,c=x&z;
+	return angle(a,b)+angle(b,c)+angle(a,c)-PI;
+}
+//triangle projection on unit sphere
+db angle3d_tri(Point x, Point y, Point z){
+	db a=angle(x,y),b=angle(y,z),c=angle(x,z);
+	db s=(a+b+c)/2;
+	return 4*atan(sqrt(tan(s/2)*tan(s/2-a/2)*tan(s/2-b/2)*tan(s/2-c/2)));
+}
+
+struct sphere{
+	point o; db r;
+	sphere(){}
+	sphere(Point o, db r):o(o),r(r){}
+	sphere(Point a, Point b):o((a+b)/2),r(!(a-b)/2){}
+	//min sphere passing point A,B,C
+	//[!] a,b,c should not on same line
+	sphere(Point a, Point b, Point c){ 
+		vec h1=b-a,h2=c-a,h3=b&c; //three plane intersection
+		vec g=vec(h1|h1,h2|h2,0)/2;   //ax+by+cz=g
+		vec g1=vec(h1.x,h2.x,h3.x); //transfer
+		vec g2=vec(h1.y,h2.y,h3.y);
+		vec g3=vec(h1.z,h2.z,h3.z);
+		db s=g1&g2|g3;              //Cramer's Rule
+		o=vec(g&g2|g3,g1&g|g3,g1&g2|g)/s + a; 
+		r=!(a-o);
+	}
+	 //[!] a,b,c,d should not collinear or coplanear
+	sphere(Point a, Point b, Point c, Point d){
+		vec h1=b-a,h2=c-a,h3=d-a; //three plane intersection
+		vec g=vec(h1|h1,h2|h2,h3|h3)/2;   //ax+by+cz=g
+		vec g1=vec(h1.x,h2.x,h3.x); //transfer
+		vec g2=vec(h1.y,h2.y,h3.y);
+		vec g3=vec(h1.z,h2.z,h3.z);
+		db s=g1&g2|g3;              //Cramer's Rule
+		o=vec(g&g2|g3,g1&g|g3,g1&g2|g)/s + a; 
+		r=!(a-o);
+	}
+};
+
+//convex hull 3D
+namespace CH3D{
+
+const int N=1010; //O(n^2)
+point p[N];
+struct face{
+	int v[3]; //index on p
+};
+vector<face> ans;
+bool vis[N][N];
+void convex(int n){ //[i] as result, cross(p[v[0]],p[v[1]],p[v[2]]) towards outside of poly
+	vector<face> nxt;
+	//make first face not collineration; [!] point p changed
+	for (int i=2;i<n;i++) if (sgn(!cross(p[0],p[1],p[i]))){swap(p[2],p[i]);break;}
+	for (int i=3;i<n;i++) if (sgn(vol6(p[0],p[1],p[2],p[i]))) {swap(p[3],p[i]);break;}
+	if (eq(vol6(p[0],p[1],p[2],p[3]))) return; //all on same line
+	ans.push_back((face){{1,2,0}}); 
+	ans.push_back((face){{2,1,0}}); //another direction. algo will select one auto.
+	for (int i=3;i<n;i++){ //adding points
+		nxt.clear();
+		for (auto &f:ans){ //remove visable face
+			bool see=sgn(vol6(p[f.v[0]],p[f.v[1]],p[f.v[2]],p[i]))>=0; //assume coplanear face visable, so previous coplanear point will be deleted
+			if (!see) nxt.push_back(f);
+			for (int k=0;k<3;k++) vis[f.v[k]][f.v[(k+1)%3]]=see; //label edges
+		}
+		if (nxt.size()==ans.size()) continue;
+		for (auto &f:ans)
+			for (int k=0;k<3;k++){
+				int a=f.v[k],b=f.v[(k+1)%3];
+				if (!vis[b][a] && vis[a][b])
+					nxt.push_back((face){{a,b,i}}),vis[a][b]=1;
+			}
+		ans.swap(nxt);//update to ans
+	}
+}
+
+//--polyhedron--
+
+db volume(){ //[!] the input face should towards same side
+	db sum=0;
+	for (auto &f:ans)
+		sum+=vol6(p[0],p[f.v[0]],p[f.v[1]],p[f.v[2]]);
+	return fabs(sum/6);
+}
+point barycenter(){ //[!] the input face should towards same side
+	point s(0,0,0);
+	db sum=0;
+	for (auto &f:ans){
+		db v=vol6(p[0],p[f.v[0]],p[f.v[1]],p[f.v[2]]);
+		sum+=v;
+		s=s+(p[0]+p[f.v[0]]+p[f.v[1]]+p[f.v[2]])/4*v;
+	}
+	return s/sum;
+}
+
+//point s is in or on polygon
+//return  1(in), 0(out), -1(on border)
+/*
+int inPoly(Point s){ //[!] the input face should towards outside
+	auto rdi=[](){return rand()%10+1;};
+start:
+	vec v=vec(rdi(),rdi(),rdi());
+	int w=0;
+	for (auto &f: ans){
+		point cp;
+		int ret=lineInt(s,v,plane(p[f.v[0]],p[f.v[1]],p[f.v[2]]),cp);
+		if (!ret || sgn(cp-s|v)<0) continue;
+		int s1=sgn(!cross(p[f.v[0]],p[f.v[1]],cp)); //TODO : bug here
+		int s2=sgn(!cross(p[f.v[0]],cp,p[f.v[2]])); //how to test point in 3d triangle?
+		int s3=sgn(!cross(p[f.v[1]],cp,p[f.v[0]]));
+		int s4=sgn(!cross(p[f.v[1]],p[f.v[2]],cp));
+		if (s1==1 && s2==1 && s3==1 && s4==1){
+			if (sgn(cp-s|v)==0) return -1;
+			w+=sgn(vol6(p[f.v[0]],p[f.v[1]],p[f.v[2]],s));
+		}
+		if ((s1||s2||s3||s4) == 0){
+			if (sgn(cp-s|v)==0) return -1;
+			goto start;
+		}
+	}
+	return w!=0;
+}
+*/
+//another impl, return sum of angle3d
+db inPoly2(Point s){
+	db w=0;
+	for (auto &f: ans) 
+		w+=sgn(vol6(s,p[f.v[0]],p[f.v[1]],p[f.v[2]]))*angle3d_tri(p[f.v[0]]-s,p[f.v[1]]-s,p[f.v[2]]-s);
+	return w;
+}
+
+}// namespace CH3D
+
+void test(){
+	point p1(0,0,0),p2(1,0,0),p3(0,1,0),p4(0,0,1);
+	printf("%f expected 1\n",vol6(p1,p2,p3,p4));
+	cout<<rot(p3,p1,p2,PI/4)<<" expect 0,0.707,0.707\n";
+	cout<<rot(p3,p1,p2,-PI/4)<<" expect 0,0.707,-0.707\n";
+	cout<<rot(p3,p1,p2,PI/2)<<" expect 0,0,1\n";
+	cout<<rot(p3,p1,p2,PI)<<" expect 0,-1,0\n";
+	plane f(p1,vec(1,1,1));
+	vec ans;
+	lineInt(p4,p1-p3-p2,f,ans);
+	cout<<ans<<" expect -0.5,-0.5,1\n";
+	cout<<planeProj(p4,f)<<" expect -0.3333,-0.3333,0.6667\n";
+	point pv;
+	planeInt(f,plane(p2,p2),ans,pv);
+	cout<<ans<<' '<<pv<<" expect 1,0.5,0.5 0,k,-k\n";
+	sphere ball({1,1,0},p2,p3);
+	cout<<ball.o<<' '<<ball.r<<" expect 0.5,0.5,0 0.707\n";
+	ball=sphere({1,1,1},{1,0,1},{0,1,1},{1,1,0});
+	cout<<ball.o<<' '<<ball.r<<" expect 0.5,0.5,0.5 0.866\n";
+	
+	{
+		using namespace CH3D;
+		inc(i,2) inc(j,2) inc(k,2) p[i*4+j*2+k]=vec(i,j,k);
+		convex(8);
+		for (auto &f:CH3D::ans)
+			cout<<p[f.v[0]]<<' '<<p[f.v[1]]<<' '<<p[f.v[2]]<<'\n';
+
+		cout<<volume()<<" expect 1\n";
+		cout<<barycenter()<<" expect 0.5,0.5,0.5\n";
+
+		cout<<inPoly({0.5,0.5,0.5})<<" expect 1\n";
+		cout<<inPoly({0,0.5,0.5})<<" expect -1\n";
+		cout<<inPoly({1.5,0.5,0.5})<<" expect 0\n";
+		
+		cout<<inPoly2({0.5,0.5,0.5})<<" expect 4*pi\n";
+	}
+}
+
+} //end namespace Geo3D
+
+//-------------------MISC------------------------
 namespace DateTime{
 
 int gettime(int h, int m, int s){
@@ -4293,109 +4646,6 @@ void dfs(int u=tn, int deep=0){
 }
 };
 
-namespace KDT{
-const int N=1000010, inf=0x3f3f3f3f;
-int n,m,K,rt,ans;
-
-//s[]:tree node  p[2]:2-d coord of leaf node  x[2]:min(LB) coord of a subspace  y[2]:max(RT) coord
-struct Node{
-	int p[2],x[2],y[2];
-	bool operator<(const Node &v)const{
-		return p[K]<v.p[K];
-	}
-}a[N],s[N],q;
-int ch[N][2];
-#define lc ch[u][0]
-#define rc ch[u][1]
-void upd(int u){
-	inc(i,2){
-		if (lc) s[u].x[i]=min(s[u].x[i],s[lc].x[i]),
-				s[u].y[i]=max(s[u].y[i],s[lc].y[i]);
-		if (rc) s[u].x[i]=min(s[u].x[i],s[rc].x[i]),
-				s[u].y[i]=max(s[u].y[i],s[rc].y[i]);
-	}
-}
-void add(int u, Node &t){
-	inc(i,2) s[u].x[i]=s[u].y[i]=s[u].p[i]=t.p[i];
-}
-int disL1Min(int u, Node &t){ //min L1 dis to a Rect of in_tree node
-	int ret=0;
-	inc(i,2) 
-		if (t.p[i]>s[u].y[i]) ret+=t.p[i]-s[u].y[i];
-		else if (t.p[i]<s[u].x[i]) ret+=s[u].x[i]-t.p[i];
-	return ret;
-}
-int disL1Max(int u, Node &t){
-	int ret=0;
-	inc(i,2) ret+=max(abs(t.p[i]-s[u].x[i]),abs(t.p[i]-s[u].y[i]));
-	return ret;
-}
-int sqr(int a){
-	return a*a;
-}
-int disL2Min(int u, Node &t){
-	int ret=0;
-	inc(i,2) 
-		if (t.p[i]>s[u].y[i]) ret+=sqr(t.p[i]-s[u].y[i]);
-		else if (t.p[i]<s[u].x[i]) ret+=sqr(t.p[i]-s[u].x[i]);
-	return ret;
-}
-int disL2Max(int u, Node &t){ //max coord dis
-	int ret=0;
-	inc(i,2) ret+=max(sqr(t.p[i]-s[u].x[i]),sqr(t.p[i]-s[u].y[i]));
-	return ret;
-}
-void build(int &u, int l, int r, int cur){ //O(nlogn)
-	u=l+r>>1; K=cur;
-	nth_element(a+l,a+u,a+r+1);
-	add(u,a[u]);
-	if (l<u) build(lc,l,u-1,cur^1);
-	if (r>u) build(rc,u+1,r,cur^1);
-	upd(u);
-}
-//Maybe we need to rebuild the tree after unbalanced insert
-void ins(int u, int cur){  
-	if (q.p[cur]<s[u].p[cur])
-		if (lc) ins(lc,cur^1);
-		else lc=++n,add(n,q);
-	else
-		if (rc) ins(rc,cur^1);
-		else rc=++n,add(n,q);
-	upd(u);
-}
-void ask(int u){
-	ans=min(ans,abs(s[u].p[0]-q.p[0])+abs(s[u].p[1]-q.p[1])); //L1 dis
-	int dl=lc?disL1Min(lc,q):inf, dr=rc?disL1Min(rc,q):inf;
-	//int dl=lc?disL1Max(lc,q):0, dr=rc?disL1Max(rc,q):0;
-	if (dl<dr){ //trim branch, swap > < when search max dis point
-		if (dl<ans) ask(lc);
-		if (dr<ans) ask(rc);
-	}
-	else{
-		if (dr<ans) ask(rc);
-		if (dl<ans) ask(lc);
-	}
-}
-//minDisPoint (L1 dis) with ins operate
-//each query asks one nearest point of a giving coord
-int main(){
-	scanf("%d%d",&n,&m);
-	for (int i=1;i<=n;i++) scanf("%d%d",&a[i].p[0],&a[i].p[1]);
-	build(rt,1,n,0);
-	while (m--){
-		int k; scanf("%d%d%d",&k,&q.p[0],&q.p[1]);
-		if (k==1) ins(rt,0);
-		else{
-			ans=inf; ask(rt);
-			printf("%d\n",ans);
-		}
-	}
-	return 0;
-}
-#undef lc
-#undef rc
-}
-
 namespace SquareTransform{
 const int N=100;
 typedef int Arr[N][N];int n;
@@ -4415,6 +4665,61 @@ bool same(Arr a, Arr b){
 	inc(i,n) inc(j,n) if (a[i][j]!=b[i][j]) return 0;
 	return 1;
 }
+}
+
+namespace Expr{
+//Easy experission, calc +-*/^()
+#define CP cin.peek()
+#define CG cin.get()
+#define CS while (CP==' ') CG;
+
+int S();
+int V(){CS
+	int ans=0;
+	if (CP=='('){
+		CG;
+		ans=S();
+		CS;CG;
+	}
+	else cin>>ans;
+	return ans;
+}
+int U(){
+	int ans=V(); CS;
+	while (CP=='^'){
+		CG;
+		int v=V(),d=ans;
+		if (v==0) ans=1;
+		for (int i=1;i<v;i++)
+			ans*=d;
+	}
+	return ans;
+}
+int T(){
+	int ans=U(); CS;
+	while (CP=='*' || CP=='/'){
+		if (CG=='*') ans*=U();
+		else ans/=U();
+	}
+	return ans;
+}
+int S(){
+	int ans=0; CS;
+	if (CP=='-'){
+		CG; ans=-T();
+	}
+	else ans=T();
+	CS;
+	while (CP=='+' || CP=='-'){
+		if (CG=='+') ans+=T();
+		else ans-=T();
+	}
+	return ans;
+}
+
+#undef CG
+#undef CP
+#undef CS
 }
 
 int main(){
