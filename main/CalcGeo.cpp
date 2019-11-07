@@ -213,14 +213,14 @@ int cirTang(circle A, circle B, point *a, point *b){
 		return 1;
 	}
 	db ang=acos((A.r-B.r)/d);
-	//in common tangent
+	//out common tangent
 	a[cnt]=A.angle(base+ang); b[cnt++]=B.angle(base+ang);
 	a[cnt]=A.angle(base-ang); b[cnt++]=B.angle(base-ang);
 	if (eq(d-sum)){
 		a[cnt] = A.angle(base);
 		b[cnt] = a[cnt];
 		cnt++;
-	} else if (sgn(d-sum)>0){ //out common tangent
+	} else if (sgn(d-sum)>0){ //in common tangent
 		ang=acos((A.r+B.r)/d);
 		a[cnt]=A.angle(base+ang); b[cnt++]=B.angle(PI+base+ang); 
 		a[cnt]=A.angle(base-ang); b[cnt++]=B.angle(PI+base-ang); 

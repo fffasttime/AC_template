@@ -16,6 +16,18 @@ struct Q{
 	bool operator<(const Q &v){return p*v.q<v.p*q;}
 	double d(){return (double)p/q;}
 };
+
+//fib(0)=0, fib(1)=1, fib(n)=fib(n-1)+fib(n-2)
+//faster & easier than matrix multiply
+int fib(ll n){
+	ll x=0,y=1,t;
+	for (int d=62-__builtin_clz(++n);d>=0;d--){
+		t=(x*x+y*y)%P; y=(x+x+y)*y%P; x=t;
+		if (n>>d&1) x=y,y=(t+y)%P;
+	}
+	return x;
+}
+
 //calc C(n,m), means select m object from n object
 namespace LUCAS{
 const ll p=10007;

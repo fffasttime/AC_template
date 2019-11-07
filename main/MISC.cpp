@@ -1,5 +1,36 @@
 #include "base.cpp"
 
+namespace FasterTrick{
+	
+const int P=1e9+7;
+//if (x<0) x+=p;
+//example: r=(x-y+P)%P  -->  r=reduce(x-y)
+//         r=(x+y)%P    -->  r=reduce(x+y-P)
+inline int reduce_p(int x){ //[!] require signed value
+	return x+(x>>31)&P;
+}
+
+ui bit_rev(ui v){
+	v = ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
+	v = ((v >> 2) & 0x33333333) | ((v & 0x33333333) << 2);
+	v = ((v >> 4) & 0x0F0F0F0F) | ((v & 0x0F0F0F0F) << 4);
+	v = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
+	v = ( v >> 16             ) | ( v               << 16);
+	return v;
+}
+typedef unsigned long long ull;
+ull bit_rev(ull v){
+	v = ((v >> 1) & 0x5555555555555555) | ((v & 0x5555555555555555) << 1);
+	v = ((v >> 2) & 0x3333333333333333) | ((v & 0x3333333333333333) << 2);
+	v = ((v >> 4) & 0x0F0F0F0F0F0F0F0F) | ((v & 0x0F0F0F0F0F0F0F0F) << 4);
+	v = ((v >> 8) & 0x00FF00FF00FF00FF) | ((v & 0x00FF00FF00FF00FF) << 8);
+	v = ((v >> 16)& 0x0000FFFF0000FFFF) | ((v & 0x0000FFFF0000FFFF) << 16);
+	v = ( v >> 32 ) | ( v << 32 );
+	return v;
+}
+
+}
+
 namespace DateTime{
 
 int gettime(int h, int m, int s){
