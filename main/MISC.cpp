@@ -293,3 +293,18 @@ bool same(Arr a, Arr b){
 	return 1;
 }
 }
+
+//0<=x<n, 0<=y<n
+//1  2  3  4
+//12 13 14 5
+//11 16 15 6
+//10 9  8  7
+int getScrewMatrix(int n, int x, int y){
+	int k=min(min(x,n-1-x),min(y,n-1-y));
+	int out=(n-k)*k*4;
+	n-=2*k,x-=k,y-=k;
+	if (x==0) return out+y+1;
+	if (y==n-1) return out+x+n;
+	if (x==n-1) return out+3*(n-1)-y+1;
+	return out+4*(n-1)-x+1;
+}
