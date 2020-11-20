@@ -8,3 +8,4 @@
 !/ext/calcgeo/*.cpp
 /main/*.*
 !/main/*.cpp
+!*.md

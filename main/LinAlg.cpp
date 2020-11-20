@@ -5,7 +5,7 @@ const int maxn=1010,maxm=1010;
 double a[maxn][maxm],b[maxn][maxn],ans[maxn];
 int n,m;
 const int eps=1e-7;
-//require m=n+1 and only one solution
+//require m=n+1 and unique solution
 bool gauss_solve(){
 	for (int i=0;i<n;i++){
 		int maxl=i;
@@ -25,6 +25,39 @@ bool gauss_solve(){
 		ans[i]=a[i][n];
 		for (int j=i+1;j<n;j++)
 			ans[i]-=a[i][j]*ans[j];
+	}
+	return 1;
+}
+//Ax=b where A is any shape of augmented matrix
+//not require m=n+1, get a possible solution ans[0..m-1)
+bool gauss_solve_possible(){
+	int l=0; //real line
+	inc(i,m){ //i: col start pos
+		int maxl=l;
+		for (int j=l;j<n;j++)
+			if (fabs(a[j][i])>fabs(a[maxl][i])) maxl=j;
+		if (maxl!=l) swap(a[l],a[maxl]);
+		if (fabs(a[l][i])<eps)
+			continue; //no solution or infinity solution, next col
+		for (int j=l+1;j<n;j++){
+			db r=a[j][i]/a[l][i];
+			for (int k=i;k<m;k++)
+				a[j][k]-=r*a[l][k];
+		}
+		db r=a[l][i];
+		for (int k=i;k<m;k++) a[l][k]/=r;
+		l++;
+	} //now l is rank of matrix
+	int last=m-1,cur;
+	for (int i=l-1;i>=0;i--){
+		for (cur=0;cur<m-1 && fabs(a[i][cur])<eps;cur++); //first no zero column
+		db t=a[i][m-1];
+		for (int j=last;j<m-1;j++) t=t-a[i][j]*ans[j]; 
+		for (last--;last>cur;last--) //any solution, set to 0
+			ans[last]=0;  //,t=(t-a[i][j]*ans[last]%p+p)%p; when ans[last] is not 0
+		if (cur==m-1 && fabs(t)>eps) return 0; //detected 0*x!=0, no solu
+		ans[cur]=t;
+		last=cur;
 	}
 	return 1;
 }
@@ -93,7 +126,7 @@ ll detint(ll **a){
 		int maxl=i;
 		for (int j=i;j<n;j++)
 			if (a[j][i]) {maxl=j;break;}
-		if (i!=maxl) swap(a[i],a[maxl]), ans=P-ans;
+		if (i!=maxl) swap(a[i],a[maxl]), ans=p-ans;
 		if (a[i][i]==0) return 0;
 		ans=ans*a[i][i]%p;   //[i] Here update ans before set a[i][i] to 1
 		int v=inv(a[i][i],p);
